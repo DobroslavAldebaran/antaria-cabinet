@@ -329,3 +329,81 @@ button {
     align-items: flex-start;
   }
 }
+
+.file-drop {
+  display: grid;
+  gap: 0.55rem;
+  justify-items: start;
+  margin-top: 0.75rem;
+  padding: 1.1rem;
+  border: 1px dashed var(--line);
+  background: rgba(0, 0, 0, 0.22);
+  cursor: pointer;
+}
+
+.file-drop input[type='file'] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+}
+
+.file-drop.is-disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.import-result {
+  margin-top: 0.85rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--line);
+  animation: import-in 0.35s ease-out;
+}
+
+.import-result--ok {
+  border-color: rgba(61, 122, 74, 0.65);
+  background: rgba(61, 122, 74, 0.14);
+}
+
+.import-result--busy {
+  border-color: rgba(196, 163, 90, 0.45);
+  background: rgba(196, 163, 90, 0.1);
+}
+
+.import-result--err {
+  border-color: rgba(143, 42, 34, 0.65);
+  background: rgba(143, 42, 34, 0.14);
+}
+
+.import-result__title {
+  margin: 0 0 0.4rem;
+  font-family: var(--font-display);
+  color: var(--accent-2);
+  letter-spacing: 0.04em;
+}
+
+.import-result--ok .import-result__title {
+  color: #8fca98;
+}
+
+.import-result--err .import-result__title {
+  color: #e07068;
+}
+
+.import-result__stats {
+  margin: 0.75rem 0 1rem;
+  padding-left: 1.1rem;
+  color: var(--ink-dim);
+}
+
+@keyframes import-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

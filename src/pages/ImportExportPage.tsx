@@ -1,43 +1,110 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useCabinet } from '../cabinet/CabinetProvider'
 import { cabinetToExport } from '../lib/drive'
+import type { AntariaExport } from '../schema/export'
 import { MAX_IMPORT_BYTES, parseExportText } from '../schema/export'
 import { Onboarding } from './Onboarding'
 
+type ImportPhase =
+  | { kind: 'idle' }
+  | { kind: 'reading'; fileName: string }
+  | { kind: 'saving'; fileName: string }
+  | {
+      kind: 'done'
+      fileName: string
+      province: string
+      summary: { orders: number; board: number; ministries: number; relations: number }
+    }
+  | { kind: 'error'; fileName?: string; message: string }
+
 export function ImportExportPage() {
   const { binding, data, downloadExport, importExport, unbind, busy } = useCabinet()
-  const [msg, setMsg] = useState<string | null>(null)
-  const [err, setErr] = useState<string | null>(null)
+  const [exportMsg, setExportMsg] = useState<string | null>(null)
+  const [importPhase, setImportPhase] = useState<ImportPhase>({ kind: 'idle' })
+  const fileRef = useRef<HTMLInputElement>(null)
 
   if (!binding) return <Onboarding />
+
+  const importing = importPhase.kind === 'reading' || importPhase.kind === 'saving'
+  const snapshot = data ? cabinetToExport(data) : null
+
+  const resetImport = () => {
+    setImportPhase({ kind: 'idle' })
+    if (fileRef.current) fileRef.current.value = ''
+  }
+
+  const onPickFile = (file: File) => {
+    setExportMsg(null)
+    if (file.size > MAX_IMPORT_BYTES) {
+      setImportPhase({
+        kind: 'error',
+        fileName: file.name,
+        message: `Файл больше лимита ${Math.round(MAX_IMPORT_BYTES / 1024 / 1024)} МБ`,
+      })
+      return
+    }
+    setImportPhase({ kind: 'reading', fileName: file.name })
+    const reader = new FileReader()
+    reader.onerror = () =>
+      setImportPhase({
+        kind: 'error',
+        fileName: file.name,
+        message: 'Не удалось прочитать файл',
+      })
+    reader.onload = () => {
+      void (async () => {
+        try {
+          const text = String(reader.result ?? '')
+          const exp = parseExportText(text)
+          setImportPhase({ kind: 'saving', fileName: file.name })
+          await importExport(exp)
+          setImportPhase({
+            kind: 'done',
+            fileName: file.name,
+            province: exp.province.provinceName || 'без имени',
+            summary: summarize(exp),
+          })
+          if (fileRef.current) fileRef.current.value = ''
+        } catch (ex) {
+          setImportPhase({
+            kind: 'error',
+            fileName: file.name,
+            message: ex instanceof Error ? ex.message : 'Ошибка импорта',
+          })
+        }
+      })()
+    }
+    reader.readAsText(file)
+  }
 
   return (
     <div className="page">
       <div className="panel">
         <h2>Экспорт</h2>
         <p className="muted">
-          Формат <code>antaria-export-v1</code> — контракт для ИИ и будущей БД. Скачайте JSON и
-          передайте модели или импортируйте позже через API.
+          Формат <code>antaria-export-v1</code> — контракт для ИИ и будущей БД.
         </p>
         <button
           type="button"
           className="btn btn-primary"
-          disabled={!data || busy}
+          disabled={!data || busy || importing}
           onClick={() => {
             downloadExport()
-            setMsg('Файл экспорта скачан')
+            setExportMsg('Файл экспорта скачан на устройство')
           }}
         >
           Скачать antaria-export-v1.json
         </button>
-        {data && (
+        {exportMsg && <p className="ok">{exportMsg}</p>}
+        {snapshot && (
           <pre className="muted" style={{ marginTop: '1rem', fontSize: '0.75rem', overflow: 'auto' }}>
             {JSON.stringify(
               {
-                format: cabinetToExport(data).format,
-                schemaVersion: cabinetToExport(data).schemaVersion,
-                province: cabinetToExport(data).province.provinceName,
-                orders: cabinetToExport(data).orders.length,
+                format: snapshot.format,
+                schemaVersion: snapshot.schemaVersion,
+                province: snapshot.province.provinceName,
+                orders: snapshot.orders.length,
               },
               null,
               2,
@@ -49,39 +116,78 @@ export function ImportExportPage() {
       <div className="panel">
         <h2>Импорт</h2>
         <p className="muted">
-          Лимит {Math.round(MAX_IMPORT_BYTES / 1024 / 1024)} МБ. Файл проходит zod-валидацию, затем
-          полностью записывается на Drive.
+          Лимит {Math.round(MAX_IMPORT_BYTES / 1024 / 1024)} МБ. Файл проверяется схемой, затем
+          полностью записывается на Drive (заменяет данные кабинета).
         </p>
-        <input
-          type="file"
-          accept="application/json,.json"
-          onChange={(e) => {
-            const file = e.target.files?.[0]
-            if (!file) return
-            setErr(null)
-            setMsg(null)
-            if (file.size > MAX_IMPORT_BYTES) {
-              setErr('Файл слишком большой')
-              return
-            }
-            const reader = new FileReader()
-            reader.onload = () => {
-              void (async () => {
-                try {
-                  const text = String(reader.result ?? '')
-                  const exp = parseExportText(text)
-                  await importExport(exp)
-                  setMsg(`Импортировано: ${exp.province.provinceName || 'без имени'}`)
-                } catch (ex) {
-                  setErr(ex instanceof Error ? ex.message : 'Ошибка импорта')
-                }
-              })()
-            }
-            reader.readAsText(file)
-          }}
-        />
-        {msg && <p className="ok">{msg}</p>}
-        {err && <p className="error">{err}</p>}
+
+        {importPhase.kind === 'done' ? (
+          <div className="import-result import-result--ok" role="status">
+            <p className="import-result__title">Импорт завершён</p>
+            <p>
+              Провинция <strong>{importPhase.province}</strong> записана на Google Drive.
+            </p>
+            <p className="muted" style={{ fontSize: '0.85rem' }}>
+              Файл: {importPhase.fileName}
+            </p>
+            <ul className="import-result__stats">
+              <li>Приказы (ходы): {importPhase.summary.orders}</li>
+              <li>Пункты доски: {importPhase.summary.board}</li>
+              <li>Министерства: {importPhase.summary.ministries}</li>
+              <li>Отношения: {importPhase.summary.relations}</li>
+            </ul>
+            <div className="btn-row">
+              <Link className="btn btn-primary" to="/app">
+                Открыть дашборд
+              </Link>
+              <button type="button" className="btn" onClick={resetImport}>
+                Импортировать другой файл
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {(importPhase.kind === 'reading' || importPhase.kind === 'saving') && (
+              <div className="import-result import-result--busy" role="status">
+                <p className="import-result__title">
+                  {importPhase.kind === 'reading' ? 'Чтение файла…' : 'Запись на Drive…'}
+                </p>
+                <p className="muted">{importPhase.fileName}</p>
+              </div>
+            )}
+
+            {importPhase.kind === 'error' && (
+              <div className="import-result import-result--err" role="alert">
+                <p className="import-result__title">Импорт не удался</p>
+                <p className="error">{importPhase.message}</p>
+                {importPhase.fileName && (
+                  <p className="muted" style={{ fontSize: '0.85rem' }}>
+                    Файл: {importPhase.fileName}
+                  </p>
+                )}
+                <button type="button" className="btn" onClick={resetImport}>
+                  Попробовать снова
+                </button>
+              </div>
+            )}
+
+            {importPhase.kind === 'idle' && (
+              <label className={`file-drop ${busy ? 'is-disabled' : ''}`}>
+                <span className="btn">Выберите JSON-файл</span>
+                <span className="muted">или перетащите сюда antaria-export-v1.json</span>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="application/json,.json"
+                  disabled={busy || importing}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) onPickFile(file)
+                  }}
+                />
+              </label>
+            )}
+          </>
+        )}
       </div>
 
       <div className="panel">
@@ -89,10 +195,19 @@ export function ImportExportPage() {
         <p className="muted">
           Текущая: {binding.folderName} (<code>{binding.folderId}</code>)
         </p>
-        <button type="button" className="btn btn-ghost" onClick={unbind}>
+        <button type="button" className="btn btn-ghost" onClick={unbind} disabled={importing}>
           Отвязать папку
         </button>
       </div>
     </div>
   )
+}
+
+function summarize(exp: AntariaExport) {
+  return {
+    orders: exp.orders.length,
+    board: exp.board.items.length,
+    ministries: exp.profile.ministries.length,
+    relations: exp.relations.parties.length,
+  }
 }
