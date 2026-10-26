@@ -193,20 +193,26 @@ async function readOrDefault<T>(
   }
 }
 
+/** Создаёт только отсутствующие файлы; существующие не перезаписывает. */
 export async function initCabinetFolder(
   accessToken: string,
   folderId: string,
 ): Promise<void> {
+  const ensure = async (name: string, data: unknown) => {
+    const existing = await findChild(accessToken, folderId, name)
+    if (existing) return
+    await writeJsonFile(accessToken, folderId, name, data)
+  }
   const meta = emptyMeta()
   meta.updatedAt = nowIso()
-  await upsertJson(accessToken, folderId, 'antaria.json', meta)
-  await upsertJson(accessToken, folderId, 'profile.json', emptyProfile())
-  await upsertJson(accessToken, folderId, 'indicators.json', emptyIndicators())
-  await upsertJson(accessToken, folderId, 'board.json', emptyBoard())
-  await upsertJson(accessToken, folderId, 'relations.json', emptyRelations())
-  await upsertJson(accessToken, folderId, 'news-local.json', emptyNews())
-  await upsertJson(accessToken, folderId, 'maps.json', emptyMaps())
-  await upsertJson(accessToken, folderId, 'military.json', emptyMilitary())
+  await ensure('antaria.json', meta)
+  await ensure('profile.json', emptyProfile())
+  await ensure('indicators.json', emptyIndicators())
+  await ensure('board.json', emptyBoard())
+  await ensure('relations.json', emptyRelations())
+  await ensure('news-local.json', emptyNews())
+  await ensure('maps.json', emptyMaps())
+  await ensure('military.json', emptyMilitary())
   const orders = await findChild(accessToken, folderId, 'orders')
   if (!orders) {
     await createSubfolder(accessToken, folderId, 'orders')
