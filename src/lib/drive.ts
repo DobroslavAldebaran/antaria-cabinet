@@ -5,11 +5,13 @@ import {
   emptyIndicators,
   emptyMaps,
   emptyMeta,
+  emptyMilitary,
   emptyNews,
   emptyProfile,
   emptyRelations,
   IndicatorsSchema,
   MapsSchema,
+  MilitarySchema,
   NewsLocalSchema,
   nowIso,
   OrdersTurnSchema,
@@ -19,6 +21,7 @@ import {
   type Board,
   type Indicators,
   type Maps,
+  type Military,
   type NewsLocal,
   type OrdersTurn,
   type Profile,
@@ -202,6 +205,7 @@ export async function initCabinetFolder(
   await upsertJson(accessToken, folderId, 'relations.json', emptyRelations())
   await upsertJson(accessToken, folderId, 'news-local.json', emptyNews())
   await upsertJson(accessToken, folderId, 'maps.json', emptyMaps())
+  await upsertJson(accessToken, folderId, 'military.json', emptyMilitary())
   const orders = await findChild(accessToken, folderId, 'orders')
   if (!orders) {
     await createSubfolder(accessToken, folderId, 'orders')
@@ -216,6 +220,7 @@ export type CabinetData = {
   relations: Relations
   news: NewsLocal
   maps: Maps
+  military: Military
   orders: OrdersTurn[]
 }
 
@@ -272,6 +277,13 @@ export async function loadCabinet(
     (r) => MapsSchema.parse(r),
     emptyMaps,
   )
+  const military = await readOrDefault(
+    accessToken,
+    folderId,
+    'military.json',
+    (r) => MilitarySchema.parse(r),
+    emptyMilitary,
+  )
 
   let ordersFolder = await findChild(accessToken, folderId, 'orders')
   if (!ordersFolder) {
@@ -289,7 +301,7 @@ export async function loadCabinet(
   }
   orders.sort((a, b) => b.turn - a.turn)
 
-  return { meta, profile, indicators, board, relations, news, maps, orders }
+  return { meta, profile, indicators, board, relations, news, maps, military, orders }
 }
 
 export async function saveMeta(
@@ -369,6 +381,17 @@ export async function saveMaps(
   })
 }
 
+export async function saveMilitary(
+  accessToken: string,
+  folderId: string,
+  military: Military,
+): Promise<void> {
+  await upsertJson(accessToken, folderId, 'military.json', {
+    ...military,
+    updatedAt: nowIso(),
+  })
+}
+
 export async function saveOrdersTurn(
   accessToken: string,
   folderId: string,
@@ -403,6 +426,7 @@ export function cabinetToExport(data: CabinetData): AntariaExport {
     relations: data.relations,
     newsLocal: data.news,
     maps: data.maps,
+    military: data.military,
   }
 }
 
@@ -419,6 +443,7 @@ export async function writeExportToDrive(
   await saveRelations(accessToken, folderId, exp.relations)
   await saveNews(accessToken, folderId, exp.newsLocal)
   await saveMaps(accessToken, folderId, exp.maps)
+  await saveMilitary(accessToken, folderId, exp.military)
   for (const turn of exp.orders) {
     await saveOrdersTurn(accessToken, folderId, turn)
   }

@@ -83,7 +83,7 @@ export function ImportExportPage() {
       <div className="panel">
         <h2>Экспорт</h2>
         <p className="muted">
-          Формат <code>antaria-export-v1</code> — контракт для ИИ и будущей БД.
+          Формат <code>antaria-export-v1</code>: контракт для ИИ и будущей БД.
         </p>
         <button
           type="button"

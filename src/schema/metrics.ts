@@ -1,0 +1,104 @@
+import type { Metric } from './province'
+
+/** Stable KPI ids used by dashboard bands and indicators editor. */
+export const METRIC_IDS = [
+  'budget',
+  'population',
+  'kr',
+  'rob',
+  'loyalty_low',
+  'loyalty_high',
+  'lto',
+  'crime',
+  'tax',
+  'duty',
+  'population_growth',
+  'chaos_cult',
+  'start_army',
+] as const
+
+export type MetricId = (typeof METRIC_IDS)[number]
+
+export const LEAD_METRIC_ID: MetricId = 'budget'
+export const SECONDARY_METRIC_IDS: MetricId[] = ['population', 'kr', 'rob']
+export const MOSAIC_METRIC_IDS: MetricId[] = METRIC_IDS.filter(
+  (id) => id !== LEAD_METRIC_ID && !SECONDARY_METRIC_IDS.includes(id),
+)
+
+export type MetricKind = 'integer' | 'ratio' | 'plain'
+
+export const METRIC_DEFS: Record<
+  MetricId,
+  { label: string; unit?: string; kind: MetricKind; note?: string }
+> = {
+  budget: { label: 'Троны', unit: 'трон', kind: 'integer' },
+  population: { label: 'Население', kind: 'integer' },
+  kr: { label: 'КР', kind: 'plain' },
+  rob: { label: 'РОБ', kind: 'integer', note: 'ОР = РОБ' },
+  loyalty_low: { label: 'Лояльность низших', unit: '%', kind: 'ratio' },
+  loyalty_high: { label: 'Лояльность высших', unit: '%', kind: 'ratio' },
+  lto: { label: 'ЛТО', kind: 'integer' },
+  crime: { label: 'Преступность', unit: '%', kind: 'ratio' },
+  tax: { label: 'Налог', kind: 'plain' },
+  duty: { label: 'Пошлина', unit: '%', kind: 'ratio' },
+  population_growth: { label: 'Прирост населения', unit: '%', kind: 'ratio' },
+  chaos_cult: { label: 'Культ хаоса', unit: '%', kind: 'ratio' },
+  start_army: { label: 'Стартовая армия', unit: '%', kind: 'ratio' },
+}
+
+export function formatMetricValue(metric: Pick<Metric, 'id' | 'value' | 'unit'>): string {
+  const def = METRIC_DEFS[metric.id as MetricId]
+  const raw = metric.value
+  if (raw === '' || raw == null) return '-'
+  const num = typeof raw === 'number' ? raw : Number(String(raw).replace(/\s/g, '').replace(',', '.'))
+  if (!Number.isFinite(num)) return String(raw)
+
+  if (def?.kind === 'ratio' || metric.unit === '%') {
+    const pct = Math.abs(num) <= 1.5 ? num * 100 : num
+    const rounded = Math.round(pct * 100) / 100
+    return `${rounded} %`
+  }
+  if (def?.kind === 'integer' || Number.isInteger(num)) {
+    return Math.round(num).toLocaleString('ru-RU')
+  }
+  const rounded = Math.round(num * 1000) / 1000
+  return String(rounded)
+}
+
+export function metricDisplayUnit(metric: Pick<Metric, 'id' | 'unit'>): string {
+  const def = METRIC_DEFS[metric.id as MetricId]
+  if (def?.kind === 'ratio' || metric.unit === '%') return ''
+  return metric.unit || def?.unit || ''
+}
+
+export function findMetric(metrics: Metric[], id: MetricId): Metric | undefined {
+  return metrics.find((m) => m.id === id)
+}
+
+export function ensureCanonicalMetrics(metrics: Metric[]): Metric[] {
+  const byId = new Map(metrics.map((m) => [m.id, m]))
+  const next: Metric[] = []
+  for (const id of METRIC_IDS) {
+    const def = METRIC_DEFS[id]
+    const existing = byId.get(id)
+    if (existing) {
+      next.push({
+        ...existing,
+        label: existing.label || def.label,
+        unit: existing.unit ?? def.unit,
+        note: existing.note ?? def.note,
+      })
+      byId.delete(id)
+    } else {
+      next.push({
+        id,
+        label: def.label,
+        value: 0,
+        unit: def.unit,
+        note: def.note,
+      })
+    }
+  }
+  for (const leftover of byId.values()) next.push(leftover)
+  return next
+}

@@ -11,7 +11,14 @@ import {
   type Timestamp,
 } from 'firebase/firestore'
 import { getDb } from './firebase'
-import type { AppSettings, AppUser, AuditEvent, UserStatus } from '../schema/registry'
+import type {
+  AppSettings,
+  AppUser,
+  AuditEvent,
+  UserStatus,
+  VkSettings,
+} from '../schema/registry'
+import { VkSettingsSchema } from '../schema/registry'
 
 function isoNow(): string {
   return new Date().toISOString()
@@ -164,6 +171,34 @@ export async function writeAudit(event: Omit<AuditEvent, 'id'>): Promise<void> {
     ...event,
     // serverTimestamp optional; keep ISO for easy client read
   })
+}
+
+export async function getVkSettings(): Promise<VkSettings | null> {
+  const snap = await getDoc(doc(getDb(), 'settings', 'vk'))
+  if (!snap.exists()) return null
+  const data = snap.data()
+  return VkSettingsSchema.parse({
+    groupId: String(data.groupId ?? ''),
+    screenName: String(data.screenName ?? ''),
+    accessToken: String(data.accessToken ?? ''),
+    updatedAt: tsToIso(data.updatedAt),
+  })
+}
+
+export async function saveVkSettings(input: {
+  groupId: string
+  screenName: string
+  accessToken: string
+}): Promise<VkSettings> {
+  const now = isoNow()
+  const next: VkSettings = {
+    groupId: input.groupId.trim(),
+    screenName: input.screenName.trim(),
+    accessToken: input.accessToken.trim(),
+    updatedAt: now,
+  }
+  await setDoc(doc(getDb(), 'settings', 'vk'), next, { merge: true })
+  return next
 }
 
 function mapUser(id: string, data: Record<string, unknown>): AppUser {

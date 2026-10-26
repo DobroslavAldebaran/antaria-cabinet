@@ -19,7 +19,7 @@ export function Landing() {
       <h1 className="brand">Antaria Cabinet</h1>
       <p>
         Закрытый кабинет провинции: показатели, доска, приказы и отношения. Данные хранятся на вашем
-        Google Drive. В публичном репозитории — только код.
+        Google Drive. В публичном репозитории: только код.
       </p>
       <div className="btn-row">
         {!configured ? (

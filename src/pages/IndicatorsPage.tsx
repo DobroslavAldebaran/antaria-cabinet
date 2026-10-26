@@ -1,16 +1,31 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useCabinet } from '../cabinet/CabinetProvider'
 import { saveIndicators } from '../lib/drive'
-import { newId, nowIso, type Indicators } from '../schema/province'
+import {
+  METRIC_DEFS,
+  METRIC_IDS,
+  ensureCanonicalMetrics,
+  type MetricId,
+} from '../schema/metrics'
+import { nowIso, type Indicators } from '../schema/province'
 import { Onboarding } from './Onboarding'
 
 export function IndicatorsPage() {
   const { binding, data, setData, ensureToken, busy } = useCabinet()
   const [msg, setMsg] = useState<string | null>(null)
 
+  useEffect(() => {
+    if (!binding || !data) return
+    const hash = window.location.hash.replace(/^#/, '')
+    if (!hash) return
+    const el = document.getElementById(`metric-${hash}`)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [binding, data])
+
   if (!binding || !data) return <Onboarding />
 
   const indicators = data.indicators
+  const metrics = ensureCanonicalMetrics(indicators.metrics)
 
   const update = (next: Indicators) => {
     setData({ ...data, indicators: next })
@@ -19,19 +34,39 @@ export function IndicatorsPage() {
   const save = async () => {
     setMsg(null)
     const token = await ensureToken()
-    const next = { ...indicators, updatedAt: nowIso() }
+    const next = {
+      ...indicators,
+      metrics: ensureCanonicalMetrics(indicators.metrics),
+      updatedAt: nowIso(),
+    }
     await saveIndicators(token, binding.folderId, next)
     setData({ ...data, indicators: next })
     setMsg('Сохранено на Drive')
+  }
+
+  const setMetricValue = (id: MetricId, raw: string) => {
+    const ensured = ensureCanonicalMetrics(indicators.metrics)
+    const idx = ensured.findIndex((m) => m.id === id)
+    if (idx < 0) return
+    const num = Number(raw.replace(/\s/g, '').replace(',', '.'))
+    ensured[idx] = {
+      ...ensured[idx],
+      value: raw !== '' && !Number.isNaN(num) ? num : raw,
+    }
+    update({ ...indicators, metrics: ensured })
   }
 
   return (
     <div className="page">
       <div className="panel">
         <h2>Показатели</h2>
+        <p className="muted">
+          Стабильные ключи для дашборда. Ведущий показатель: Троны (budget).
+        </p>
         <div className="field">
-          <label>Ход</label>
+          <label htmlFor="ind-turn">Ход</label>
           <input
+            id="ind-turn"
             type="number"
             value={indicators.turn}
             onChange={(e) =>
@@ -39,61 +74,28 @@ export function IndicatorsPage() {
             }
           />
         </div>
-        <div className="stack" style={{ marginTop: '1rem' }}>
-          {indicators.metrics.map((m, idx) => (
-            <div key={m.id} className="list-block stack">
-              <div className="field">
-                <label>Название</label>
-                <input
-                  value={m.label}
-                  onChange={(e) => {
-                    const metrics = [...indicators.metrics]
-                    metrics[idx] = { ...m, label: e.target.value }
-                    update({ ...indicators, metrics })
-                  }}
-                />
+        <div className="stack indicators-stack">
+          {METRIC_IDS.map((id) => {
+            const def = METRIC_DEFS[id]
+            const m = metrics.find((x) => x.id === id)!
+            return (
+              <div key={id} className="list-block stack" id={`metric-${id}`}>
+                <div className="field">
+                  <label htmlFor={`val-${id}`}>
+                    {def.label}
+                    <span className="muted"> ({id})</span>
+                  </label>
+                  <input
+                    id={`val-${id}`}
+                    value={String(m.value)}
+                    onChange={(e) => setMetricValue(id, e.target.value)}
+                  />
+                </div>
+                {def.unit && <p className="muted">Единица: {def.unit}</p>}
+                {def.note && <p className="muted">{def.note}</p>}
               </div>
-              <div className="field">
-                <label>Значение</label>
-                <input
-                  value={String(m.value)}
-                  onChange={(e) => {
-                    const metrics = [...indicators.metrics]
-                    const raw = e.target.value
-                    const num = Number(raw)
-                    metrics[idx] = {
-                      ...m,
-                      value: raw !== '' && !Number.isNaN(num) && String(num) === raw ? num : raw,
-                    }
-                    update({ ...indicators, metrics })
-                  }}
-                />
-              </div>
-              <div className="field">
-                <label>Единица</label>
-                <input
-                  value={m.unit ?? ''}
-                  onChange={(e) => {
-                    const metrics = [...indicators.metrics]
-                    metrics[idx] = { ...m, unit: e.target.value }
-                    update({ ...indicators, metrics })
-                  }}
-                />
-              </div>
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() =>
-                  update({
-                    ...indicators,
-                    metrics: indicators.metrics.filter((x) => x.id !== m.id),
-                  })
-                }
-              >
-                Удалить
-              </button>
-            </div>
-          ))}
+            )
+          })}
         </div>
         <div className="btn-row">
           <button
@@ -102,16 +104,18 @@ export function IndicatorsPage() {
             onClick={() =>
               update({
                 ...indicators,
-                metrics: [
-                  ...indicators.metrics,
-                  { id: newId('m'), label: 'Новая метрика', value: 0 },
-                ],
+                metrics: ensureCanonicalMetrics(indicators.metrics),
               })
             }
           >
-            Добавить метрику
+            Заполнить недостающие ключи
           </button>
-          <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void save()}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={busy}
+            onClick={() => void save()}
+          >
             Сохранить
           </button>
         </div>

@@ -144,6 +144,7 @@ export function CabinetProvider({ children }: { children: ReactNode }) {
         relations: exp.relations,
         news: exp.newsLocal,
         maps: exp.maps,
+        military: exp.military,
         orders: exp.orders,
       }
       await writeExportToDrive(token, binding.folderId, cabinet)

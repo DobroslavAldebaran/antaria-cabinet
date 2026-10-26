@@ -44,23 +44,27 @@ export function BoardPage() {
                 }}
               />
             </div>
-            <div className="field">
-              <label>Статус</label>
-              <select
-                value={item.status}
-                onChange={(e) => {
-                  const items = [...board.items]
-                  items[idx] = { ...item, status: e.target.value as BoardStatus }
-                  update({ ...board, items })
-                }}
-              >
+            <fieldset className="field status-fieldset">
+              <legend>Статус</legend>
+              <div className="btn-row status-options" role="radiogroup" aria-label={`Статус: ${item.title}`}>
                 {BoardStatusSchema.options.map((s) => (
-                  <option key={s} value={s}>
+                  <button
+                    key={s}
+                    type="button"
+                    role="radio"
+                    aria-checked={item.status === s}
+                    className={`btn ${item.status === s ? 'btn-primary' : 'btn-ghost'}`}
+                    onClick={() => {
+                      const items = [...board.items]
+                      items[idx] = { ...item, status: s as BoardStatus }
+                      update({ ...board, items })
+                    }}
+                  >
                     {s}
-                  </option>
+                  </button>
                 ))}
-              </select>
-            </div>
+              </div>
+            </fieldset>
             <div className="field">
               <label>Заметки</label>
               <textarea

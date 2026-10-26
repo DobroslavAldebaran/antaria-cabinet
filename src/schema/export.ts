@@ -4,11 +4,13 @@ import {
   BoardSchema,
   IndicatorsSchema,
   MapsSchema,
+  MilitarySchema,
   NewsLocalSchema,
   OrdersTurnSchema,
   ProfileSchema,
   RelationsSchema,
   SCHEMA_VERSION,
+  emptyMilitary,
 } from './province'
 
 export const EXPORT_FORMAT = 'antaria-export' as const
@@ -27,6 +29,8 @@ export const AntariaExportSchema = z.object({
   relations: RelationsSchema,
   newsLocal: NewsLocalSchema,
   maps: MapsSchema,
+  /** Additive: old exports without military still parse. */
+  military: MilitarySchema.default(() => emptyMilitary()),
 })
 
 export type AntariaExport = z.infer<typeof AntariaExportSchema>

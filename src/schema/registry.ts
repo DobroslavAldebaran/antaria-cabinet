@@ -29,6 +29,14 @@ export const AppSettingsSchema = z.object({
 
 export type AppSettings = z.infer<typeof AppSettingsSchema>
 
+export const VkSettingsSchema = z.object({
+  groupId: z.string().default(''),
+  screenName: z.string().default(''),
+  accessToken: z.string().default(''),
+  updatedAt: z.string(),
+})
+export type VkSettings = z.infer<typeof VkSettingsSchema>
+
 export const AuditEventSchema = z.object({
   id: z.string(),
   type: z.enum([

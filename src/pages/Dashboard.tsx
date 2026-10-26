@@ -1,6 +1,48 @@
 import { Link } from 'react-router-dom'
 import { useCabinet } from '../cabinet/CabinetProvider'
+import { VkNewsPanel } from '../components/VkNewsPanel'
+import {
+  LEAD_METRIC_ID,
+  MOSAIC_METRIC_IDS,
+  SECONDARY_METRIC_IDS,
+  findMetric,
+  formatMetricValue,
+  metricDisplayUnit,
+  type MetricId,
+} from '../schema/metrics'
+import type { Metric } from '../schema/province'
 import { Onboarding } from './Onboarding'
+
+function MetricCell({
+  metric,
+  id,
+  variant,
+}: {
+  metric: Metric | undefined
+  id: MetricId
+  variant: 'lead' | 'secondary' | 'mosaic'
+}) {
+  const label = metric?.label ?? id
+  const valueText = metric ? formatMetricValue(metric) : '-'
+  const unit = metric ? metricDisplayUnit(metric) : ''
+  const aria = `${label}: ${valueText}${unit ? ` ${unit}` : ''}`
+
+  return (
+    <Link
+      to={`/app/indicators#${id}`}
+      className={`kpi-cell kpi-${variant}`}
+      aria-label={aria}
+      id={`kpi-${id}`}
+    >
+      <span className="kpi-label">{label}</span>
+      <span className="kpi-value">
+        {valueText}
+        {unit ? <span className="kpi-unit"> {unit}</span> : null}
+      </span>
+      {metric?.note ? <span className="kpi-note muted">{metric.note}</span> : null}
+    </Link>
+  )
+}
 
 export function Dashboard() {
   const { binding, data, busy, error, reload } = useCabinet()
@@ -22,104 +64,83 @@ export function Dashboard() {
     )
   }
 
-  const statusCounts = data.board.items.reduce<Record<string, number>>((acc, item) => {
-    acc[item.status] = (acc[item.status] ?? 0) + 1
-    return acc
-  }, {})
+  const metrics = data.indicators.metrics
+  const lead = findMetric(metrics, LEAD_METRIC_ID)
+  const hasAnyMetric = metrics.length > 0
+  const orderCount = data.orders.reduce((n, t) => n + t.items.length, 0)
 
   return (
-    <div className="page">
-      <div className="panel">
-        <h2>
-          {data.meta.provinceName || 'Провинция без имени'}{' '}
-          <span className="muted" style={{ fontSize: '0.9rem' }}>
-            ход {data.meta.currentTurn}
-          </span>
-        </h2>
-        <p className="muted">
-          {data.meta.ruler && <>Правитель: {data.meta.ruler}. </>}
-          {data.meta.faction && <>Фракция: {data.meta.faction}. </>}
-          Папка: {binding.folderName}
-        </p>
-        <div className="btn-row">
-          <button type="button" className="btn" onClick={() => void reload()}>
-            Обновить с Drive
+    <div className="page dash">
+      <header className="dash-masthead panel">
+        <div className="dash-masthead-text">
+          <h1 className="dash-title">
+            {data.meta.provinceName || 'Провинция без имени'}
+          </h1>
+          <p className="dash-turn muted">ход {data.meta.currentTurn}</p>
+          <p className="dash-meta muted">
+            {data.meta.ruler ? <>Правитель: {data.meta.ruler}</> : null}
+            {data.meta.ruler && data.meta.faction ? ' · ' : null}
+            {data.meta.faction ? <>Фракция: {data.meta.faction}</> : null}
+            {(data.meta.ruler || data.meta.faction) && binding.folderName ? ' · ' : null}
+            {binding.folderName ? <>Папка: {binding.folderName}</> : null}
+          </p>
+        </div>
+        <div className="btn-row dash-actions">
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={busy}
+            aria-busy={busy}
+            onClick={() => void reload()}
+          >
+            {busy ? 'Обновление…' : 'Обновить'}
           </button>
-          <Link className="btn" to="/app/io">
+          <Link className="btn btn-ghost" to="/app/io">
             Импорт / Экспорт
           </Link>
         </div>
         {error && <p className="error">{error}</p>}
-      </div>
+      </header>
 
-      <div className="panel">
-        <h3>Показатели</h3>
-        {data.indicators.metrics.length === 0 ? (
-          <p className="muted">
-            Пока пусто. <Link to="/app/indicators">Добавить метрики</Link>
-          </p>
-        ) : (
-          <div className="grid-metrics">
-            {data.indicators.metrics.slice(0, 8).map((m) => (
-              <div className="metric" key={m.id}>
-                <span className="label">{m.label}</span>
-                <span className="value">
-                  {m.value}
-                  {m.unit ? ` ${m.unit}` : ''}
-                </span>
-              </div>
+      {!hasAnyMetric ? (
+        <section className="panel dash-empty-kpi" aria-labelledby="kpi-empty">
+          <h2 id="kpi-empty">Показатели</h2>
+          <p className="muted">Пока пусто. Добавьте метрики или импортируйте экспорт.</p>
+          <Link className="btn btn-primary" to="/app/indicators">
+            Открыть показатели
+          </Link>
+        </section>
+      ) : (
+        <>
+          <section className="dash-band dash-lead" aria-label="Ведущий показатель">
+            <MetricCell metric={lead} id={LEAD_METRIC_ID} variant="lead" />
+          </section>
+
+          <section className="dash-band dash-secondary" aria-label="Вторичные показатели">
+            {SECONDARY_METRIC_IDS.map((id) => (
+              <MetricCell key={id} metric={findMetric(metrics, id)} id={id} variant="secondary" />
             ))}
-          </div>
-        )}
-      </div>
+          </section>
 
-      <div className="panel">
-        <h3>Доска</h3>
-        <div className="btn-row">
-          {Object.entries(statusCounts).map(([k, v]) => (
-            <span className="badge" key={k}>
-              {k}: {v}
-            </span>
-          ))}
-          {data.board.items.length === 0 && <span className="muted">Нет элементов</span>}
-        </div>
-      </div>
-
-      <div className="panel">
-        <h3>Последние приказы</h3>
-        {data.orders.length === 0 ? (
-          <p className="muted">
-            Нет приказов. <Link to="/app/orders">Создать</Link>
-          </p>
-        ) : (
-          data.orders.slice(0, 2).map((pack) => (
-            <div key={pack.turn} className="list-block">
-              <strong>Ход {pack.turn}</strong>
-              <ul>
-                {pack.items.slice(0, 5).map((item) => (
-                  <li key={item.id}>
-                    {item.secret ? '🔒 ' : ''}
-                    {item.title}
-                    {item.budget ? ` — ${item.budget}` : ''}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))
-        )}
-      </div>
-
-      {data.news.items.length > 0 && (
-        <div className="panel">
-          <h3>Новости</h3>
-          {data.news.items.slice(0, 5).map((n) => (
-            <div key={n.id} className="list-block">
-              <strong>{n.title}</strong>
-              {n.excerpt && <p className="muted">{n.excerpt}</p>}
-            </div>
-          ))}
-        </div>
+          <section className="dash-band dash-mosaic" aria-label="Остальные показатели">
+            {MOSAIC_METRIC_IDS.map((id) => (
+              <MetricCell key={id} metric={findMetric(metrics, id)} id={id} variant="mosaic" />
+            ))}
+          </section>
+        </>
       )}
+
+      <VkNewsPanel localNews={data.news} />
+
+      <footer className="dash-end muted">
+        <Link to="/app/orders">
+          Приказы{orderCount ? ` (${orderCount})` : ''}
+        </Link>
+        {' · '}
+        <Link to="/app/military">Военка</Link>
+        {' · '}
+        <Link to="/app/board">Доска</Link>
+      </footer>
     </div>
   )
 }

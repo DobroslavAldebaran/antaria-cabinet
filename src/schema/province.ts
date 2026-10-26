@@ -45,6 +45,7 @@ export const MetricSchema = z.object({
   unit: z.string().optional(),
   note: z.string().optional(),
 })
+export type Metric = z.infer<typeof MetricSchema>
 
 export const IndicatorsSchema = z.object({
   schemaVersion: z.literal(SCHEMA_VERSION),
@@ -53,6 +54,23 @@ export const IndicatorsSchema = z.object({
   updatedAt: z.string(),
 })
 export type Indicators = z.infer<typeof IndicatorsSchema>
+
+export const MilitaryUnitSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  count: z.number().default(0),
+  hire: z.union([z.string(), z.number()]).optional(),
+  upkeep: z.union([z.string(), z.number()]).optional(),
+  note: z.string().optional(),
+})
+export type MilitaryUnit = z.infer<typeof MilitaryUnitSchema>
+
+export const MilitarySchema = z.object({
+  schemaVersion: z.literal(SCHEMA_VERSION),
+  units: z.array(MilitaryUnitSchema).default([]),
+  updatedAt: z.string(),
+})
+export type Military = z.infer<typeof MilitarySchema>
 
 export const BoardItemSchema = z.object({
   id: z.string(),
@@ -186,6 +204,13 @@ export function emptyNews(): NewsLocal {
 
 export function emptyMaps(): Maps {
   return MapsSchema.parse({
+    schemaVersion: SCHEMA_VERSION,
+    updatedAt: nowIso(),
+  })
+}
+
+export function emptyMilitary(): Military {
+  return MilitarySchema.parse({
     schemaVersion: SCHEMA_VERSION,
     updatedAt: nowIso(),
   })

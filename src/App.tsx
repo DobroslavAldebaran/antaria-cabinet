@@ -10,6 +10,7 @@ import { ImportExportPage } from './pages/ImportExportPage'
 import { IndicatorsPage } from './pages/IndicatorsPage'
 import { Landing } from './pages/Landing'
 import { MapsPage } from './pages/MapsPage'
+import { MilitaryPage } from './pages/MilitaryPage'
 import { NewsPage } from './pages/NewsPage'
 import { OrdersPage } from './pages/OrdersPage'
 import { Pending } from './pages/Pending'
@@ -37,6 +38,7 @@ export default function App() {
                 <Route path="app" element={<CabinetLayout />}>
                   <Route index element={<Dashboard />} />
                   <Route path="indicators" element={<IndicatorsPage />} />
+                  <Route path="military" element={<MilitaryPage />} />
                   <Route path="board" element={<BoardPage />} />
                   <Route path="orders" element={<OrdersPage />} />
                   <Route path="relations" element={<RelationsPage />} />

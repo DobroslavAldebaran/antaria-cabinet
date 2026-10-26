@@ -18,6 +18,7 @@ export function Layout() {
               [
                 ['/app', 'Дашборд'],
                 ['/app/indicators', 'Показатели'],
+                ['/app/military', 'Военка'],
                 ['/app/board', 'Доска'],
                 ['/app/orders', 'Приказы'],
                 ['/app/relations', 'Отношения'],
@@ -48,9 +49,7 @@ export function Layout() {
         )}
         <div className="btn-row">
           {user && (
-            <span className="muted" style={{ fontSize: '0.85rem' }}>
-              {user.email}
-            </span>
+            <span className="muted topbar-email">{user.email}</span>
           )}
           {user && (
             <button type="button" className="btn btn-ghost" onClick={() => void signOut()}>

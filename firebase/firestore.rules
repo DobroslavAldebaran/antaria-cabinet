@@ -25,6 +25,16 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // VK community token: admin write; approved read (closed cabinet circle).
+    // Token is visible to approved clients by design; harden later via Cloud Function.
+    match /settings/vk {
+      allow read: if signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && userDoc().data.status == 'approved';
+      allow create, update: if isAdmin();
+      allow delete: if false;
+    }
+
     match /users/{userId} {
       allow read: if signedIn() && (request.auth.uid == userId || isAdmin());
 

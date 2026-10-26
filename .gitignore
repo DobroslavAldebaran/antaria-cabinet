@@ -15,7 +15,7 @@ dist-ssr
 .env.*
 !.env.example
 
-# Local / private data — never commit
+# Local / private data — never commit (province lore, export seeds, private builders)
 data/
 export/
 fixtures/
@@ -23,6 +23,8 @@ fixtures/
 *.xls
 dump/
 uploads/
+**/antaria-export*.json
+scripts/build-export-from-db.mjs
 
 # Editor
 .vscode/*
@@ -34,3 +36,7 @@ uploads/
 *.njsproj
 *.sln
 *.sw?
+
+firebase-debug.log
+.firebase/
+
