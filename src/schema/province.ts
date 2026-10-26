@@ -47,10 +47,35 @@ export const MetricSchema = z.object({
 })
 export type Metric = z.infer<typeof MetricSchema>
 
+export const MetricLedgerKindSchema = z.enum([
+  'start',
+  'order',
+  'between_turns',
+  'manual',
+])
+export type MetricLedgerKind = z.infer<typeof MetricLedgerKindSchema>
+
+export const MetricLedgerEntrySchema = z.object({
+  id: z.string(),
+  metricId: z.string(),
+  kind: MetricLedgerKindSchema,
+  turn: z.number().int().optional(),
+  delta: z.union([z.string(), z.number()]).optional(),
+  balanceAfter: z.union([z.string(), z.number()]).optional(),
+  title: z.string(),
+  orderTurn: z.number().int().optional(),
+  orderId: z.string().optional(),
+  note: z.string().optional(),
+  at: z.string().optional(),
+})
+export type MetricLedgerEntry = z.infer<typeof MetricLedgerEntrySchema>
+
 export const IndicatorsSchema = z.object({
   schemaVersion: z.literal(SCHEMA_VERSION),
   turn: z.number().int().nonnegative().default(0),
   metrics: z.array(MetricSchema).default([]),
+  /** Additive: old indicators without ledger still parse. */
+  ledger: z.array(MetricLedgerEntrySchema).default([]),
   updatedAt: z.string(),
 })
 export type Indicators = z.infer<typeof IndicatorsSchema>

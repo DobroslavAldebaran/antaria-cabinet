@@ -24,6 +24,7 @@ import {
 } from '../lib/folderStorage'
 import type { AntariaExport } from '../schema/export'
 import { parseExportJson } from '../schema/export'
+import { normalizeIndicators } from '../schema/metrics'
 import { writeAudit } from '../lib/registry'
 
 type CabinetContextValue = {
@@ -139,7 +140,7 @@ export function CabinetProvider({ children }: { children: ReactNode }) {
       const cabinet: CabinetData = {
         meta: exp.province,
         profile: exp.profile,
-        indicators: exp.indicators,
+        indicators: normalizeIndicators(exp.indicators),
         board: exp.board,
         relations: exp.relations,
         news: exp.newsLocal,

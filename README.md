@@ -65,7 +65,11 @@ KPI на дашборде: стабильные id (`budget` = Троны, `rob`
   "app": "antaria-cabinet",
   "province": {},
   "profile": {},
-  "indicators": {},
+  "indicators": {
+    "turn": 0,
+    "metrics": [],
+    "ledger": []
+  },
   "board": {},
   "orders": [],
   "relations": {},
@@ -75,7 +79,7 @@ KPI на дашборде: стабильные id (`budget` = Троны, `rob`
 }
 ```
 
-Поле `military` аддитивное: старые экспорты без него парсятся с пустым списком юнитов.
+Поля `military` и `indicators.ledger` аддитивные: старые экспорты без них парсятся с пустыми списками. Ledger: записи `start` / `order` / `between_turns` / `manual` с `metricId`, `delta` или `balanceAfter`, `title`.
 
 Тот же файл можно сгенерировать ИИ и импортировать обратно; позже — `POST` в серверную БД без смены контракта.
 

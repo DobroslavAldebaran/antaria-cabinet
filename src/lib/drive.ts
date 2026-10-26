@@ -27,6 +27,7 @@ import {
   type Profile,
   type Relations,
 } from '../schema/province'
+import { normalizeIndicators } from '../schema/metrics'
 import type { AntariaExport } from '../schema/export'
 import { EXPORT_FORMAT } from '../schema/export'
 import { SCHEMA_VERSION } from '../schema/province'
@@ -242,12 +243,14 @@ export async function loadCabinet(
     (r) => ProfileSchema.parse(r),
     emptyProfile,
   )
-  const indicators = await readOrDefault(
-    accessToken,
-    folderId,
-    'indicators.json',
-    (r) => IndicatorsSchema.parse(r),
-    () => emptyIndicators(meta.currentTurn),
+  const indicators = normalizeIndicators(
+    await readOrDefault(
+      accessToken,
+      folderId,
+      'indicators.json',
+      (r) => IndicatorsSchema.parse(r),
+      () => emptyIndicators(meta.currentTurn),
+    ),
   )
   const board = await readOrDefault(
     accessToken,
@@ -331,10 +334,11 @@ export async function saveIndicators(
   folderId: string,
   indicators: Indicators,
 ): Promise<void> {
-  await upsertJson(accessToken, folderId, 'indicators.json', {
+  const next = normalizeIndicators({
     ...indicators,
     updatedAt: nowIso(),
   })
+  await upsertJson(accessToken, folderId, 'indicators.json', next)
 }
 
 export async function saveBoard(
@@ -420,7 +424,7 @@ export function cabinetToExport(data: CabinetData): AntariaExport {
     app: 'antaria-cabinet',
     province: data.meta,
     profile: data.profile,
-    indicators: data.indicators,
+    indicators: normalizeIndicators(data.indicators),
     board: data.board,
     orders: data.orders,
     relations: data.relations,

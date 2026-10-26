@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useCabinet } from '../cabinet/CabinetProvider'
 import { saveOrdersTurn } from '../lib/drive'
 import { parseOrdersMarkdown } from '../lib/mdOrders'
@@ -12,9 +13,17 @@ import { Onboarding } from './Onboarding'
 
 export function OrdersPage() {
   const { binding, data, setData, ensureToken, busy } = useCabinet()
+  const [searchParams] = useSearchParams()
   const [turn, setTurn] = useState(0)
   const [msg, setMsg] = useState<string | null>(null)
   const [md, setMd] = useState('')
+
+  useEffect(() => {
+    const q = searchParams.get('turn')
+    if (q == null || q === '') return
+    const n = Number(q)
+    if (Number.isFinite(n) && n >= 0) setTurn(n)
+  }, [searchParams])
 
   if (!binding || !data) return <Onboarding />
 

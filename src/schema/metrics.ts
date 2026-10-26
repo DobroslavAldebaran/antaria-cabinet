@@ -1,4 +1,9 @@
-import type { Metric } from './province'
+import type {
+  Indicators,
+  Metric,
+  MetricLedgerEntry,
+  MetricLedgerKind,
+} from './province'
 
 /** Stable KPI ids used by dashboard bands and indicators editor. */
 export const METRIC_IDS = [
@@ -46,6 +51,13 @@ export const METRIC_DEFS: Record<
   start_army: { label: 'Стартовая армия', unit: '%', kind: 'ratio' },
 }
 
+export const LEDGER_KIND_LABELS: Record<MetricLedgerKind, string> = {
+  start: 'Старт',
+  order: 'Приказ',
+  between_turns: 'Между ходами',
+  manual: 'Вручную',
+}
+
 export function formatMetricValue(metric: Pick<Metric, 'id' | 'value' | 'unit'>): string {
   const def = METRIC_DEFS[metric.id as MetricId]
   const raw = metric.value
@@ -71,6 +83,20 @@ export function metricDisplayUnit(metric: Pick<Metric, 'id' | 'unit'>): string {
   return metric.unit || def?.unit || ''
 }
 
+export function formatLedgerAmount(
+  raw: number | string | undefined,
+  signed: boolean,
+): string {
+  if (raw === undefined || raw === '') return '-'
+  const num = typeof raw === 'number' ? raw : Number(String(raw).replace(/\s/g, '').replace(',', '.'))
+  if (!Number.isFinite(num)) return String(raw)
+  const abs = Math.abs(num).toLocaleString('ru-RU')
+  if (!signed) return abs
+  if (num > 0) return `+${abs}`
+  if (num < 0) return `\u2212${abs}`
+  return '0'
+}
+
 export function findMetric(metrics: Metric[], id: MetricId): Metric | undefined {
   return metrics.find((m) => m.id === id)
 }
@@ -84,7 +110,7 @@ export function ensureCanonicalMetrics(metrics: Metric[]): Metric[] {
     if (existing) {
       next.push({
         ...existing,
-        label: existing.label || def.label,
+        label: def.label,
         unit: existing.unit ?? def.unit,
         note: existing.note ?? def.note,
       })
@@ -93,7 +119,7 @@ export function ensureCanonicalMetrics(metrics: Metric[]): Metric[] {
       next.push({
         id,
         label: def.label,
-        value: 0,
+        value: '',
         unit: def.unit,
         note: def.note,
       })
@@ -101,4 +127,24 @@ export function ensureCanonicalMetrics(metrics: Metric[]): Metric[] {
   }
   for (const leftover of byId.values()) next.push(leftover)
   return next
+}
+
+export function sortLedgerEntries(entries: MetricLedgerEntry[]): MetricLedgerEntry[] {
+  return [...entries].sort((a, b) => {
+    const aStart = a.kind === 'start' ? 0 : 1
+    const bStart = b.kind === 'start' ? 0 : 1
+    if (aStart !== bStart) return aStart - bStart
+    const aTurn = a.turn ?? Number.POSITIVE_INFINITY
+    const bTurn = b.turn ?? Number.POSITIVE_INFINITY
+    if (aTurn !== bTurn) return aTurn - bTurn
+    return String(a.at ?? '').localeCompare(String(b.at ?? ''))
+  })
+}
+
+export function normalizeIndicators(indicators: Indicators): Indicators {
+  return {
+    ...indicators,
+    metrics: ensureCanonicalMetrics(indicators.metrics),
+    ledger: indicators.ledger ?? [],
+  }
 }
