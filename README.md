@@ -1,0 +1,93 @@
+# Antaria Cabinet
+
+Закрытый SPA-кабинет для РГПС «Бунт в Антарии».
+
+- **Публичный репозиторий содержит только код** — без игровых данных, новостей и фикстур.
+- **Firebase Auth (Google)** + Firestore: первый пользователь становится `admin`, дальше набор закрыт до approve.
+- **Данные провинции** — на Google Drive игрока (`drive.file`).
+- **Импорт/экспорт** — `antaria-export-v1.json` (контракт для ИИ и будущей БД).
+
+Деплой: GitHub Pages → `https://<user>.github.io/antaria-cabinet/`.
+
+## Стек
+
+Vite + React + TypeScript, HashRouter, Firebase, Google Drive API, zod.
+
+## Локальный запуск
+
+1. Скопируйте `.env.example` → `.env.local` и заполните.
+2. `npm install`
+3. `npm run dev`
+
+Откройте `http://localhost:5173/antaria-cabinet/`.
+
+## Google Cloud / Firebase (один раз)
+
+1. Создайте Firebase project, включите **Authentication → Google**.
+2. Создайте Firestore, задеплойте правила из [`firebase/firestore.rules`](firebase/firestore.rules):
+   ```bash
+   firebase deploy --only firestore:rules
+   ```
+3. В Google Cloud того же проекта включите **Google Drive API**.
+4. OAuth Client (Web): Authorized JavaScript origins:
+   - `http://localhost:5173`
+   - `https://<user>.github.io`
+5. Authorized domains в Firebase: `localhost`, `<user>.github.io`.
+6. Положите web-конфиг Firebase и Client ID в `.env.local` / GitHub Actions secrets (`VITE_*`).
+
+### Регистрация
+
+| Событие | Результат |
+|---------|-----------|
+| Первый Google Sign-In | `role=admin`, `status=approved`, `registrationOpen=false` |
+| Следующие Sign-In | `role=user`, `status=pending` (кабинет закрыт) |
+| Admin → Approve | доступ к Drive-кабинету |
+| Admin → «открыть набор» | новые сразу `approved` (временно) |
+
+## Структура данных на Drive
+
+После онбординга в выбранной папке:
+
+- `antaria.json`, `profile.json`, `indicators.json`, `board.json`
+- `relations.json`, `news-local.json`, `maps.json`
+- `orders/turn-NN.json`
+
+## Экспорт для ИИ / БД
+
+В кабинете: **Импорт/Экспорт** → скачать JSON:
+
+```json
+{
+  "format": "antaria-export",
+  "schemaVersion": 1,
+  "app": "antaria-cabinet",
+  "province": {},
+  "profile": {},
+  "indicators": {},
+  "board": {},
+  "orders": [],
+  "relations": {},
+  "newsLocal": {},
+  "maps": {}
+}
+```
+
+Тот же файл можно сгенерировать ИИ и импортировать обратно; позже — `POST` в серверную БД без смены контракта.
+
+## GitHub Pages
+
+1. Settings → Pages → Source: **GitHub Actions**.
+2. Добавьте repository secrets с префиксом `VITE_`.
+3. Push в `main` / `master` или запустите workflow вручную.
+
+## Безопасность
+
+- Нет данных провинции в git (см. `.gitignore`).
+- Firestore Security Rules ограничивают approve/settings админом.
+- CSP в `index.html`.
+- Импорт: лимит размера + zod.
+- Текст рендерится как plain text (без raw HTML).
+
+## Вне scope MVP
+
+VK OAuth, общий Drive министров, серверная БД провинций, полный парсер xlsx.
