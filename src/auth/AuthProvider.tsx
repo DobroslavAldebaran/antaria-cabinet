@@ -3,6 +3,7 @@ import {
   onAuthStateChanged,
   signInWithPopup,
   signOut as firebaseSignOut,
+  type AuthError,
   type User,
 } from 'firebase/auth'
 import {
@@ -23,6 +24,23 @@ import {
   getSettings,
 } from '../lib/registry'
 import type { AppSettings, AppUser } from '../schema/registry'
+
+const POPUP_BLOCKED_MSG =
+  'Окно входа заблокировано браузером. Войдите снова через кнопку на главной.'
+
+function getAuthErrorCode(e: unknown): string | null {
+  if (typeof e === 'object' && e !== null && 'code' in e) {
+    const code = (e as AuthError).code
+    return typeof code === 'string' ? code : null
+  }
+  return null
+}
+
+function goHome() {
+  if (window.location.hash !== '#/' && window.location.hash !== '') {
+    window.location.hash = '#/'
+  }
+}
 
 type AuthContextValue = {
   configured: boolean
@@ -68,10 +86,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const auth = getFirebaseAuth()
     return onAuthStateChanged(auth, async (next) => {
       setLoading(true)
-      setError(null)
       setUser(next)
       try {
         if (next) {
+          setError(null)
           const p = await ensureUserRegistry({
             uid: next.uid,
             email: next.email,
@@ -93,6 +111,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
   }, [configured])
 
+  const clearLocalSession = useCallback(() => {
+    setAccessToken(null)
+    setProfile(null)
+    setSettings(null)
+  }, [])
+
+  const signOut = useCallback(async () => {
+    await firebaseSignOut(getFirebaseAuth())
+    clearLocalSession()
+  }, [clearLocalSession])
+
+  const recoverFromPopupBlocked = useCallback(async () => {
+    setError(POPUP_BLOCKED_MSG)
+    try {
+      await firebaseSignOut(getFirebaseAuth())
+    } catch {
+      // сессия могла уже быть пустой
+    }
+    clearLocalSession()
+    goHome()
+  }, [clearLocalSession])
+
   const signIn = useCallback(async () => {
     setError(null)
     try {
@@ -104,29 +144,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const cred = GoogleAuthProvider.credentialFromResult(result)
       if (cred?.accessToken) setAccessToken(cred.accessToken)
     } catch (e) {
+      if (getAuthErrorCode(e) === 'auth/popup-blocked') {
+        setError(POPUP_BLOCKED_MSG)
+        goHome()
+        return
+      }
       setError(e instanceof Error ? e.message : 'Ошибка входа')
       throw e
     }
   }, [])
 
   const refreshDriveToken = useCallback(async () => {
-    const auth = getFirebaseAuth()
-    if (!auth.currentUser) throw new Error('Нет сессии')
-    const provider = new GoogleAuthProvider()
-    provider.addScope(DRIVE_SCOPE)
-    const result = await signInWithPopup(auth, provider)
-    const cred = GoogleAuthProvider.credentialFromResult(result)
-    if (!cred?.accessToken) throw new Error('Не удалось получить токен Drive')
-    setAccessToken(cred.accessToken)
-    return cred.accessToken
-  }, [])
-
-  const signOut = useCallback(async () => {
-    await firebaseSignOut(getFirebaseAuth())
-    setAccessToken(null)
-    setProfile(null)
-    setSettings(null)
-  }, [])
+    try {
+      const auth = getFirebaseAuth()
+      if (!auth.currentUser) throw new Error('Нет сессии')
+      const provider = new GoogleAuthProvider()
+      provider.addScope(DRIVE_SCOPE)
+      const result = await signInWithPopup(auth, provider)
+      const cred = GoogleAuthProvider.credentialFromResult(result)
+      if (!cred?.accessToken) throw new Error('Не удалось получить токен Drive')
+      setAccessToken(cred.accessToken)
+      return cred.accessToken
+    } catch (e) {
+      if (getAuthErrorCode(e) === 'auth/popup-blocked') {
+        await recoverFromPopupBlocked()
+        throw new Error(POPUP_BLOCKED_MSG)
+      }
+      throw e
+    }
+  }, [recoverFromPopupBlocked])
 
   const value = useMemo<AuthContextValue>(
     () => ({
