@@ -115,6 +115,13 @@ button {
   padding: 1.5rem 0 3rem;
 }
 
+.page.dash {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 1.25rem 0 3rem;
+}
+
 .hero {
   min-height: calc(100vh - 2rem);
   display: grid;
@@ -284,7 +291,17 @@ button {
   line-height: 1.1;
   letter-spacing: 0.04em;
   color: var(--accent-2);
-  max-width: 28ch;
+}
+
+.dash-masthead,
+.dash-end {
+  margin-left: 1rem;
+  margin-right: 1rem;
+}
+
+.dash-kpi-screen .dash-band {
+  margin-left: 0;
+  margin-right: 0;
 }
 
 .dash-turn {
@@ -331,11 +348,11 @@ button {
   }
 
   .dash-secondary {
-    grid-template-columns: 1.2fr 0.9fr 0.9fr;
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
   }
 
   .dash-mosaic {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
   }
 }
 
@@ -345,7 +362,7 @@ button {
   }
 
   .dash-mosaic {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
   }
 }
 
@@ -617,57 +634,6 @@ button {
   .ledger-add-grid {
     grid-template-columns: repeat(2, 1fr);
   }
-}
-
-.dash-news-meta {
-  margin: 0 0 1rem;
-}
-
-.dash-news-layout {
-  display: grid;
-  gap: 1rem;
-}
-
-@media (min-width: 900px) {
-  .dash-news-layout {
-    grid-template-columns: 1fr 1fr;
-    align-items: start;
-  }
-}
-
-.vk-widget-wrap {
-  border: 1px solid var(--line);
-  background: rgba(0, 0, 0, 0.25);
-  min-height: 20rem;
-}
-
-.vk-widget-empty {
-  display: grid;
-  place-items: center;
-  padding: 1.5rem;
-}
-
-.vk-widget {
-  width: 100%;
-  height: 25rem;
-  border: 0;
-  display: block;
-}
-
-.vk-feed {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.vk-post {
-  border: 1px solid var(--line);
-  padding: 0.75rem 0.9rem;
-  background: rgba(0, 0, 0, 0.18);
-}
-
-.vk-post p {
-  margin: 0.35rem 0;
-  white-space: pre-wrap;
 }
 
 .dash-end {

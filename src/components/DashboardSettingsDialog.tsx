@@ -102,7 +102,7 @@ export function DashboardSettingsDialog({
           </header>
 
           <p className="muted">
-            Нажмите показатель, чтобы изменить его. Можно добавить новый.
+            Нажмите показатель, чтобы изменить название или удалить. Можно добавить новый.
           </p>
 
           <ul className="dash-settings-list">

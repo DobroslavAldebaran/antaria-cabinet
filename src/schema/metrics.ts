@@ -5,7 +5,7 @@ import type {
   MetricLedgerKind,
 } from './province'
 
-/** Stable KPI ids used by dashboard bands and indicators editor. */
+/** Known KPI ids: optional formatting hints only, not locked system metrics. */
 export const METRIC_IDS = [
   'budget',
   'population',
@@ -23,12 +23,6 @@ export const METRIC_IDS = [
 ] as const
 
 export type MetricId = (typeof METRIC_IDS)[number]
-
-export const LEAD_METRIC_ID: MetricId = 'budget'
-export const SECONDARY_METRIC_IDS: MetricId[] = ['population', 'kr', 'rob']
-export const MOSAIC_METRIC_IDS: MetricId[] = METRIC_IDS.filter(
-  (id) => id !== LEAD_METRIC_ID && !SECONDARY_METRIC_IDS.includes(id),
-)
 
 export type MetricKind = 'integer' | 'ratio' | 'plain'
 
@@ -58,8 +52,15 @@ export const LEDGER_KIND_LABELS: Record<MetricLedgerKind, string> = {
   manual: 'Вручную',
 }
 
+export function isKnownMetricId(id: string): id is MetricId {
+  return (METRIC_IDS as readonly string[]).includes(id)
+}
+
+/** @deprecated Use isKnownMetricId. Kept for older call sites. */
+export const isCanonicalMetricId = isKnownMetricId
+
 export function formatMetricValue(metric: Pick<Metric, 'id' | 'value' | 'unit'>): string {
-  const def = METRIC_DEFS[metric.id as MetricId]
+  const def = isKnownMetricId(metric.id) ? METRIC_DEFS[metric.id] : undefined
   const raw = metric.value
   if (raw === '' || raw == null) return '-'
   const num = typeof raw === 'number' ? raw : Number(String(raw).replace(/\s/g, '').replace(',', '.'))
@@ -78,7 +79,7 @@ export function formatMetricValue(metric: Pick<Metric, 'id' | 'value' | 'unit'>)
 }
 
 export function metricDisplayUnit(metric: Pick<Metric, 'id' | 'unit'>): string {
-  const def = METRIC_DEFS[metric.id as MetricId]
+  const def = isKnownMetricId(metric.id) ? METRIC_DEFS[metric.id] : undefined
   if (def?.kind === 'ratio' || metric.unit === '%') return ''
   return metric.unit || def?.unit || ''
 }
@@ -97,10 +98,6 @@ export function formatLedgerAmount(
   return '0'
 }
 
-export function isCanonicalMetricId(id: string): id is MetricId {
-  return (METRIC_IDS as readonly string[]).includes(id)
-}
-
 export function findMetric(metrics: Metric[], id: string): Metric | undefined {
   return metrics.find((m) => m.id === id)
 }
@@ -108,7 +105,7 @@ export function findMetric(metrics: Metric[], id: string): Metric | undefined {
 export function metricLabel(metrics: Metric[], id: string): string {
   const fromList = findMetric(metrics, id)?.label
   if (fromList) return fromList
-  if (isCanonicalMetricId(id)) return METRIC_DEFS[id].label
+  if (isKnownMetricId(id)) return METRIC_DEFS[id].label
   return id
 }
 
@@ -117,43 +114,28 @@ function scrubMetricNote(note: string | undefined): string | undefined {
   return note
 }
 
-export function ensureCanonicalMetrics(metrics: Metric[]): Metric[] {
-  const byId = new Map(metrics.map((m) => [m.id, m]))
+/** Normalize stored metrics without forcing a fixed catalog. */
+export function normalizeMetrics(metrics: Metric[]): Metric[] {
+  const seen = new Set<string>()
   const next: Metric[] = []
-  for (const id of METRIC_IDS) {
-    const def = METRIC_DEFS[id]
-    const existing = byId.get(id)
-    if (existing) {
-      next.push({
-        ...existing,
-        label: def.label,
-        unit: existing.unit ?? def.unit,
-        note: scrubMetricNote(existing.note ?? def.note),
-      })
-      byId.delete(id)
-    } else {
-      next.push({
-        id,
-        label: def.label,
-        value: '',
-        unit: def.unit,
-        note: scrubMetricNote(def.note),
-      })
-    }
-  }
-  for (const leftover of byId.values()) {
+  for (const metric of metrics) {
+    if (!metric?.id || seen.has(metric.id)) continue
+    seen.add(metric.id)
+    const def = isKnownMetricId(metric.id) ? METRIC_DEFS[metric.id] : undefined
+    const label = metric.label?.trim() || def?.label || metric.id
     next.push({
-      ...leftover,
-      note: scrubMetricNote(leftover.note),
+      ...metric,
+      label,
+      unit: metric.unit ?? def?.unit,
+      note: scrubMetricNote(metric.note),
     })
   }
   return next
 }
 
-export function customMetricIds(metrics: Metric[]): string[] {
-  return metrics
-    .map((m) => m.id)
-    .filter((id) => !isCanonicalMetricId(id))
+/** @deprecated Use normalizeMetrics. */
+export function ensureCanonicalMetrics(metrics: Metric[]): Metric[] {
+  return normalizeMetrics(metrics)
 }
 
 export function sortLedgerEntries(entries: MetricLedgerEntry[]): MetricLedgerEntry[] {
@@ -168,10 +150,19 @@ export function sortLedgerEntries(entries: MetricLedgerEntry[]): MetricLedgerEnt
   })
 }
 
+export function pruneLedgerForMetrics(
+  ledger: MetricLedgerEntry[],
+  metrics: Metric[],
+): MetricLedgerEntry[] {
+  const ids = new Set(metrics.map((m) => m.id))
+  return ledger.filter((entry) => ids.has(entry.metricId))
+}
+
 export function normalizeIndicators(indicators: Indicators): Indicators {
+  const metrics = normalizeMetrics(indicators.metrics)
   return {
     ...indicators,
-    metrics: ensureCanonicalMetrics(indicators.metrics),
-    ledger: indicators.ledger ?? [],
+    metrics,
+    ledger: pruneLedgerForMetrics(indicators.ledger ?? [], metrics),
   }
 }

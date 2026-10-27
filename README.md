@@ -83,14 +83,6 @@ KPI на дашборде: стабильные id (`budget` = Троны, `rob`
 
 Тот же файл можно сгенерировать ИИ и импортировать обратно; позже — `POST` в серверную БД без смены контракта.
 
-## VK (стена сообщества)
-
-1. Создайте ключ сообщества: [Ключ доступа сообщества](https://dev.vk.com/ru/api/access-token/community-token) (права на стену).
-2. Админ → блок «VK»: numeric group id, screen name, token → Firestore `settings/vk` (без дефолтов в коде).
-3. Дашборд: виджет стены + лента через `wall.get` (JSONP). Без настроек: локальные `news-local`.
-
-Токен не кладите в `VITE_*` / git. Одобренные пользователи кабинета читают `settings/vk` с клиента (закрытый круг). Для публичного интернета этого недостаточно: вынесите вызов в Cloud Function.
-
 Игровые данные провинции и локальный билдер экспорта живут только в gitignored `data/` / `export/`, не в публичном коде.
 
 ## GitHub Pages
@@ -102,11 +94,11 @@ KPI на дашборде: стабильные id (`budget` = Троны, `rob`
 ## Безопасность
 
 - Нет данных провинции в git (см. `.gitignore`).
-- Firestore Security Rules: approve/`settings/app`/`settings/vk` пишет admin; `settings/vk` читают approved.
+- Firestore Security Rules: approve/`settings/app` пишет admin.
 - CSP в `index.html`.
 - Импорт: лимит размера + zod.
 - Текст рендерится как plain text (без raw HTML).
 
 ## Вне scope MVP
 
-Общий Drive министров, серверная БД провинций, Cloud Function-прокси для VK.
+Общий Drive министров, серверная БД провинций.

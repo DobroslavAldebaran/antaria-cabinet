@@ -3,20 +3,14 @@ import { Link } from 'react-router-dom'
 import { useCabinet } from '../cabinet/CabinetProvider'
 import { DashboardSettingsDialog } from '../components/DashboardSettingsDialog'
 import { MetricHistoryDialog } from '../components/MetricHistoryDialog'
-import { VkNewsPanel } from '../components/VkNewsPanel'
 import { saveIndicators } from '../lib/drive'
 import {
-  LEAD_METRIC_ID,
-  MOSAIC_METRIC_IDS,
-  SECONDARY_METRIC_IDS,
-  customMetricIds,
-  ensureCanonicalMetrics,
   findMetric,
   formatMetricValue,
   metricDisplayUnit,
   metricLabel,
   normalizeIndicators,
-  type MetricId,
+  normalizeMetrics,
 } from '../schema/metrics'
 import { nowIso, type Metric } from '../schema/province'
 import { Onboarding } from './Onboarding'
@@ -78,10 +72,11 @@ export function Dashboard() {
     )
   }
 
-  const metrics = ensureCanonicalMetrics(data.indicators.metrics)
+  const metrics = normalizeMetrics(data.indicators.metrics)
   const ledger = data.indicators.ledger ?? []
-  const lead = findMetric(metrics, LEAD_METRIC_ID)
-  const extras = customMetricIds(metrics)
+  const lead = metrics[0]
+  const secondary = metrics.slice(1, 4)
+  const mosaic = metrics.slice(4)
   const orderCount = data.orders.reduce((n, t) => n + t.items.length, 0)
   const hasValues = metrics.some((m) => m.value !== '' && m.value != null)
 
@@ -101,7 +96,7 @@ export function Dashboard() {
     const token = await ensureToken()
     const next = normalizeIndicators({
       ...data.indicators,
-      metrics: ensureCanonicalMetrics(data.indicators.metrics),
+      metrics: data.indicators.metrics,
       ledger: data.indicators.ledger ?? [],
       updatedAt: nowIso(),
     })
@@ -162,50 +157,45 @@ export function Dashboard() {
           ) : null}
         </header>
 
-        <section className="dash-band dash-lead" aria-label="Ведущий показатель">
-          <MetricCell
-            metric={lead}
-            id={LEAD_METRIC_ID}
-            variant="lead"
-            onOpen={setHistoryId}
-          />
-        </section>
+        {lead ? (
+          <section className="dash-band dash-lead" aria-label="Ведущий показатель">
+            <MetricCell
+              metric={lead}
+              id={lead.id}
+              variant="lead"
+              onOpen={setHistoryId}
+            />
+          </section>
+        ) : null}
 
-        <section className="dash-band dash-secondary" aria-label="Вторичные показатели">
-          {SECONDARY_METRIC_IDS.map((id) => (
-            <MetricCell
-              key={id}
-              metric={findMetric(metrics, id)}
-              id={id}
-              variant="secondary"
-              onOpen={setHistoryId}
-            />
-          ))}
-        </section>
+        {secondary.length > 0 ? (
+          <section className="dash-band dash-secondary" aria-label="Вторичные показатели">
+            {secondary.map((metric) => (
+              <MetricCell
+                key={metric.id}
+                metric={metric}
+                id={metric.id}
+                variant="secondary"
+                onOpen={setHistoryId}
+              />
+            ))}
+          </section>
+        ) : null}
 
-        <section className="dash-band dash-mosaic" aria-label="Остальные показатели">
-          {MOSAIC_METRIC_IDS.map((id: MetricId) => (
-            <MetricCell
-              key={id}
-              metric={findMetric(metrics, id)}
-              id={id}
-              variant="mosaic"
-              onOpen={setHistoryId}
-            />
-          ))}
-          {extras.map((id) => (
-            <MetricCell
-              key={id}
-              metric={findMetric(metrics, id)}
-              id={id}
-              variant="mosaic"
-              onOpen={setHistoryId}
-            />
-          ))}
-        </section>
+        {mosaic.length > 0 ? (
+          <section className="dash-band dash-mosaic" aria-label="Остальные показатели">
+            {mosaic.map((metric) => (
+              <MetricCell
+                key={metric.id}
+                metric={findMetric(metrics, metric.id) ?? metric}
+                id={metric.id}
+                variant="mosaic"
+                onOpen={setHistoryId}
+              />
+            ))}
+          </section>
+        ) : null}
       </div>
-
-      <VkNewsPanel localNews={data.news} />
 
       <footer className="dash-end muted">
         <Link to="/app/orders">

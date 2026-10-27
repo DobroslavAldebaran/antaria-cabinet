@@ -1,5 +1,4 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { isCanonicalMetricId } from '../schema/metrics'
 import type { Metric } from '../schema/province'
 
 export type MetricEditDraft = {
@@ -76,8 +75,7 @@ export function MetricEditDialog({
     }
   }, [open])
 
-  const canonical = draft ? isCanonicalMetricId(draft.id) : false
-  const canDelete = mode === 'edit' && draft && !canonical && onDelete
+  const canDelete = mode === 'edit' && draft && onDelete
 
   const submit = () => {
     if (!draft) return
@@ -122,12 +120,8 @@ export function MetricEditDialog({
               <input
                 id="metric-edit-label"
                 value={draft.label}
-                disabled={canonical}
                 onChange={(e) => setDraft({ ...draft, label: e.target.value })}
               />
-              {canonical ? (
-                <p className="muted">Системный показатель: название фиксировано.</p>
-              ) : null}
             </div>
             <div className="field">
               <label htmlFor="metric-edit-value">Значение</label>
