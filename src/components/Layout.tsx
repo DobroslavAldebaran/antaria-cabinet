@@ -17,8 +17,6 @@ export function Layout() {
             {(
               [
                 ['/app', 'Дашборд'],
-                ['/app/military', 'Военка'],
-                ['/app/board', 'Доска'],
                 ['/app/orders', 'Приказы'],
                 ['/app/relations', 'Отношения'],
                 ['/app/profile', 'Профиль'],

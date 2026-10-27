@@ -78,7 +78,6 @@ export function Dashboard() {
   const secondary = metrics.slice(1, 4)
   const mosaic = metrics.slice(4)
   const orderCount = data.orders.reduce((n, t) => n + t.items.length, 0)
-  const hasValues = metrics.some((m) => m.value !== '' && m.value != null)
 
   const changeMetrics = (nextMetrics: Metric[]) => {
     setSettingsMsg(null)
@@ -109,19 +108,7 @@ export function Dashboard() {
     <div className="page dash">
       <div className="dash-kpi-screen">
         <header className="dash-masthead panel">
-          <div className="dash-masthead-text">
-            <h1 className="dash-title">
-              {data.meta.provinceName || 'Провинция без имени'}
-            </h1>
-            <p className="dash-turn muted">ход {data.meta.currentTurn}</p>
-            <p className="dash-meta muted">
-              {data.meta.ruler ? <>Правитель: {data.meta.ruler}</> : null}
-              {data.meta.ruler && data.meta.faction ? ' · ' : null}
-              {data.meta.faction ? <>Фракция: {data.meta.faction}</> : null}
-              {(data.meta.ruler || data.meta.faction) && binding.folderName ? ' · ' : null}
-              {binding.folderName ? <>Папка: {binding.folderName}</> : null}
-            </p>
-          </div>
+          <p className="dash-turn muted">ход {data.meta.currentTurn}</p>
           <div className="btn-row dash-actions">
             <button
               type="button"
@@ -135,26 +122,7 @@ export function Dashboard() {
             >
               Настройки
             </button>
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={busy}
-              aria-busy={busy}
-              onClick={() => void reload()}
-            >
-              {busy ? 'Обновление…' : 'Обновить'}
-            </button>
-            <Link className="btn btn-ghost" to="/app/io">
-              Импорт / Экспорт
-            </Link>
           </div>
-          {error && <p className="error">{error}</p>}
-          {!hasValues ? (
-            <p className="muted dash-import-hint">
-              Показатели пусты.{' '}
-              <Link to="/app/io">Импортируйте JSON</Link> или откройте настройки.
-            </p>
-          ) : null}
         </header>
 
         {lead ? (
@@ -201,10 +169,6 @@ export function Dashboard() {
         <Link to="/app/orders">
           Приказы{orderCount ? ` (${orderCount})` : ''}
         </Link>
-        {' · '}
-        <Link to="/app/military">Военка</Link>
-        {' · '}
-        <Link to="/app/board">Доска</Link>
       </footer>
 
       <MetricHistoryDialog
