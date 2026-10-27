@@ -292,11 +292,6 @@ button {
   margin-right: 1rem;
 }
 
-.dash-kpi-screen .dash-band {
-  margin-left: 0;
-  margin-right: 0;
-}
-
 .dash-turn {
   margin: 0;
   font-size: 0.95rem;
@@ -306,54 +301,49 @@ button {
   margin-top: 0;
 }
 
-.dash-band {
+.dash-kpi-grid {
   display: grid;
-  gap: 0.45rem;
-  margin-bottom: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin: 0 1rem;
+  justify-content: start;
 }
 
-.dash-lead {
-  grid-template-columns: 1fr;
-}
-
-.dash-secondary {
-  grid-template-columns: 1fr;
-}
-
-.dash-mosaic {
-  grid-template-columns: 1fr;
+.dash-kpi-empty {
+  margin: 0 1rem;
 }
 
 @media (min-width: 640px) {
-  .dash-secondary {
-    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
-  }
-
-  .dash-mosaic {
-    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  .dash-kpi-grid {
+    grid-template-columns: repeat(auto-fill, minmax(9.5rem, 10.5rem));
+    gap: 0.65rem;
   }
 }
 
 @media (min-width: 960px) {
   .dash-kpi-screen {
-    gap: 0.45rem;
+    gap: 0.55rem;
   }
 
-  .dash-mosaic {
-    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  .dash-kpi-grid {
+    grid-template-columns: repeat(auto-fill, minmax(10rem, 11.5rem));
   }
 }
 
 .kpi-cell {
   display: grid;
-  gap: 0.2rem;
+  grid-template-rows: auto 1fr auto;
+  align-content: stretch;
+  gap: 0.35rem;
+  aspect-ratio: 1 / 1;
   border: 1px solid var(--line);
   background: rgba(22, 17, 12, 0.72);
-  padding: 0.5rem 0.7rem;
+  padding: 0.7rem 0.75rem 0.65rem;
   text-align: left;
   text-decoration: none;
   color: inherit;
   width: 100%;
+  min-width: 0;
   transition: border-color 0.2s, background 0.2s;
 }
 
@@ -375,25 +365,28 @@ button {
   color: var(--ink-dim);
   font-size: 0.72rem;
   letter-spacing: 0.03em;
+  line-height: 1.2;
 }
 
 .kpi-value {
   font-family: var(--font-display);
   font-weight: 700;
+  font-size: clamp(1.35rem, 4.5vw, 1.85rem);
   line-height: 1.05;
-}
-
-.kpi-lead .kpi-value {
-  font-size: clamp(1.75rem, 4.5vw, 2.35rem);
   color: var(--accent-2);
+  align-self: center;
 }
 
-.kpi-secondary .kpi-value {
-  font-size: clamp(1.15rem, 2.4vw, 1.45rem);
+.kpi-foot {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
 }
 
-.kpi-mosaic .kpi-value {
-  font-size: 1.05rem;
+.kpi-caption {
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
 }
 
 .kpi-unit {
@@ -404,7 +397,15 @@ button {
 }
 
 .kpi-note {
-  font-size: 0.7rem;
+  font-size: 0.68rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.field-hint {
+  margin: 0.25rem 0 0;
+  font-size: 0.8rem;
 }
 
 /* --- Metric history dialog --- */

@@ -124,12 +124,15 @@ export function MetricEditDialog({
               />
             </div>
             <div className="field">
-              <label htmlFor="metric-edit-value">Значение</label>
+              <label htmlFor="metric-edit-value">Стартовое значение</label>
               <input
                 id="metric-edit-value"
                 value={draft.value}
                 onChange={(e) => setDraft({ ...draft, value: e.target.value })}
               />
+              <p className="muted field-hint">
+                База, от которой считаются приказы и записи истории.
+              </p>
             </div>
             <div className="field">
               <label htmlFor="metric-edit-unit">Единица</label>
