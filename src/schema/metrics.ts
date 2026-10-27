@@ -39,7 +39,7 @@ export const METRIC_DEFS: Record<
   budget: { label: 'Троны', unit: 'трон', kind: 'integer' },
   population: { label: 'Население', kind: 'integer' },
   kr: { label: 'КР', kind: 'plain' },
-  rob: { label: 'РОБ', kind: 'integer', note: 'ОР = РОБ' },
+  rob: { label: 'РОБ', kind: 'integer' },
   loyalty_low: { label: 'Лояльность низших', unit: '%', kind: 'ratio' },
   loyalty_high: { label: 'Лояльность высших', unit: '%', kind: 'ratio' },
   lto: { label: 'ЛТО', kind: 'integer' },
@@ -97,8 +97,24 @@ export function formatLedgerAmount(
   return '0'
 }
 
-export function findMetric(metrics: Metric[], id: MetricId): Metric | undefined {
+export function isCanonicalMetricId(id: string): id is MetricId {
+  return (METRIC_IDS as readonly string[]).includes(id)
+}
+
+export function findMetric(metrics: Metric[], id: string): Metric | undefined {
   return metrics.find((m) => m.id === id)
+}
+
+export function metricLabel(metrics: Metric[], id: string): string {
+  const fromList = findMetric(metrics, id)?.label
+  if (fromList) return fromList
+  if (isCanonicalMetricId(id)) return METRIC_DEFS[id].label
+  return id
+}
+
+function scrubMetricNote(note: string | undefined): string | undefined {
+  if (!note || note === 'ОР = РОБ') return undefined
+  return note
 }
 
 export function ensureCanonicalMetrics(metrics: Metric[]): Metric[] {
@@ -112,7 +128,7 @@ export function ensureCanonicalMetrics(metrics: Metric[]): Metric[] {
         ...existing,
         label: def.label,
         unit: existing.unit ?? def.unit,
-        note: existing.note ?? def.note,
+        note: scrubMetricNote(existing.note ?? def.note),
       })
       byId.delete(id)
     } else {
@@ -121,12 +137,23 @@ export function ensureCanonicalMetrics(metrics: Metric[]): Metric[] {
         label: def.label,
         value: '',
         unit: def.unit,
-        note: def.note,
+        note: scrubMetricNote(def.note),
       })
     }
   }
-  for (const leftover of byId.values()) next.push(leftover)
+  for (const leftover of byId.values()) {
+    next.push({
+      ...leftover,
+      note: scrubMetricNote(leftover.note),
+    })
+  }
   return next
+}
+
+export function customMetricIds(metrics: Metric[]): string[] {
+  return metrics
+    .map((m) => m.id)
+    .filter((id) => !isCanonicalMetricId(id))
 }
 
 export function sortLedgerEntries(entries: MetricLedgerEntry[]): MetricLedgerEntry[] {

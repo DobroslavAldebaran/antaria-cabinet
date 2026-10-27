@@ -7,7 +7,6 @@ import { Admin } from './pages/Admin'
 import { BoardPage } from './pages/BoardPage'
 import { Dashboard } from './pages/Dashboard'
 import { ImportExportPage } from './pages/ImportExportPage'
-import { IndicatorsPage } from './pages/IndicatorsPage'
 import { Landing } from './pages/Landing'
 import { MapsPage } from './pages/MapsPage'
 import { MilitaryPage } from './pages/MilitaryPage'
@@ -37,7 +36,7 @@ export default function App() {
               <Route element={<RequireApproved />}>
                 <Route path="app" element={<CabinetLayout />}>
                   <Route index element={<Dashboard />} />
-                  <Route path="indicators" element={<IndicatorsPage />} />
+                  <Route path="indicators" element={<Navigate to="/app" replace />} />
                   <Route path="military" element={<MilitaryPage />} />
                   <Route path="board" element={<BoardPage />} />
                   <Route path="orders" element={<OrdersPage />} />

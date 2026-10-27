@@ -1,20 +1,24 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useCabinet } from '../cabinet/CabinetProvider'
+import { DashboardSettingsDialog } from '../components/DashboardSettingsDialog'
 import { MetricHistoryDialog } from '../components/MetricHistoryDialog'
 import { VkNewsPanel } from '../components/VkNewsPanel'
+import { saveIndicators } from '../lib/drive'
 import {
   LEAD_METRIC_ID,
-  METRIC_DEFS,
   MOSAIC_METRIC_IDS,
   SECONDARY_METRIC_IDS,
+  customMetricIds,
   ensureCanonicalMetrics,
   findMetric,
   formatMetricValue,
   metricDisplayUnit,
+  metricLabel,
+  normalizeIndicators,
   type MetricId,
 } from '../schema/metrics'
-import type { Metric } from '../schema/province'
+import { nowIso, type Metric } from '../schema/province'
 import { Onboarding } from './Onboarding'
 
 function MetricCell({
@@ -24,11 +28,11 @@ function MetricCell({
   onOpen,
 }: {
   metric: Metric | undefined
-  id: MetricId
+  id: string
   variant: 'lead' | 'secondary' | 'mosaic'
-  onOpen: (id: MetricId) => void
+  onOpen: (id: string) => void
 }) {
-  const label = METRIC_DEFS[id].label
+  const label = metric?.label || metricLabel(metric ? [metric] : [], id)
   const valueText = metric ? formatMetricValue(metric) : '-'
   const unit = metric ? metricDisplayUnit(metric) : ''
   const aria = `${label}: ${valueText}${unit ? ` ${unit}` : ''}. Открыть историю`
@@ -52,8 +56,10 @@ function MetricCell({
 }
 
 export function Dashboard() {
-  const { binding, data, busy, error, reload } = useCabinet()
-  const [historyId, setHistoryId] = useState<MetricId | null>(null)
+  const { binding, data, setData, ensureToken, busy, error, reload } = useCabinet()
+  const [historyId, setHistoryId] = useState<string | null>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsMsg, setSettingsMsg] = useState<string | null>(null)
 
   if (!binding) return <Onboarding />
 
@@ -75,8 +81,34 @@ export function Dashboard() {
   const metrics = ensureCanonicalMetrics(data.indicators.metrics)
   const ledger = data.indicators.ledger ?? []
   const lead = findMetric(metrics, LEAD_METRIC_ID)
+  const extras = customMetricIds(metrics)
   const orderCount = data.orders.reduce((n, t) => n + t.items.length, 0)
   const hasValues = metrics.some((m) => m.value !== '' && m.value != null)
+
+  const changeMetrics = (nextMetrics: Metric[]) => {
+    setSettingsMsg(null)
+    setData({
+      ...data,
+      indicators: normalizeIndicators({
+        ...data.indicators,
+        metrics: nextMetrics,
+      }),
+    })
+  }
+
+  const saveSettings = async () => {
+    setSettingsMsg(null)
+    const token = await ensureToken()
+    const next = normalizeIndicators({
+      ...data.indicators,
+      metrics: ensureCanonicalMetrics(data.indicators.metrics),
+      ledger: data.indicators.ledger ?? [],
+      updatedAt: nowIso(),
+    })
+    await saveIndicators(token, binding.folderId, next)
+    setData({ ...data, indicators: next })
+    setSettingsMsg('Сохранено на Drive')
+  }
 
   return (
     <div className="page dash">
@@ -98,6 +130,18 @@ export function Dashboard() {
           <div className="btn-row dash-actions">
             <button
               type="button"
+              className="btn btn-ghost"
+              aria-haspopup="dialog"
+              aria-expanded={settingsOpen}
+              onClick={() => {
+                setSettingsMsg(null)
+                setSettingsOpen(true)
+              }}
+            >
+              Настройки
+            </button>
+            <button
+              type="button"
               className="btn btn-primary"
               disabled={busy}
               aria-busy={busy}
@@ -113,7 +157,7 @@ export function Dashboard() {
           {!hasValues ? (
             <p className="muted dash-import-hint">
               Показатели пусты.{' '}
-              <Link to="/app/io">Импортируйте JSON</Link> или заполните в Показателях.
+              <Link to="/app/io">Импортируйте JSON</Link> или откройте настройки.
             </p>
           ) : null}
         </header>
@@ -140,7 +184,16 @@ export function Dashboard() {
         </section>
 
         <section className="dash-band dash-mosaic" aria-label="Остальные показатели">
-          {MOSAIC_METRIC_IDS.map((id) => (
+          {MOSAIC_METRIC_IDS.map((id: MetricId) => (
+            <MetricCell
+              key={id}
+              metric={findMetric(metrics, id)}
+              id={id}
+              variant="mosaic"
+              onOpen={setHistoryId}
+            />
+          ))}
+          {extras.map((id) => (
             <MetricCell
               key={id}
               metric={findMetric(metrics, id)}
@@ -166,9 +219,20 @@ export function Dashboard() {
 
       <MetricHistoryDialog
         metricId={historyId}
+        metrics={metrics}
         entries={ledger}
         open={historyId != null}
         onClose={() => setHistoryId(null)}
+      />
+
+      <DashboardSettingsDialog
+        open={settingsOpen}
+        metrics={metrics}
+        busy={busy}
+        message={settingsMsg}
+        onClose={() => setSettingsOpen(false)}
+        onChangeMetrics={changeMetrics}
+        onSave={() => void saveSettings()}
       />
     </div>
   )

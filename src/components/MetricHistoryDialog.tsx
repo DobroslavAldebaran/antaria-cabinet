@@ -2,27 +2,28 @@ import { useEffect, useId, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import {
   LEDGER_KIND_LABELS,
-  METRIC_DEFS,
   formatLedgerAmount,
+  metricLabel,
   sortLedgerEntries,
-  type MetricId,
 } from '../schema/metrics'
-import type { MetricLedgerEntry } from '../schema/province'
+import type { Metric, MetricLedgerEntry } from '../schema/province'
 
 export function MetricHistoryDialog({
   metricId,
+  metrics,
   entries,
   open,
   onClose,
 }: {
-  metricId: MetricId | null
+  metricId: string | null
+  metrics: Metric[]
   entries: MetricLedgerEntry[]
   open: boolean
   onClose: () => void
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const titleId = useId()
-  const label = metricId ? METRIC_DEFS[metricId].label : ''
+  const label = metricId ? metricLabel(metrics, metricId) : ''
   const rows = metricId
     ? sortLedgerEntries(entries.filter((e) => e.metricId === metricId))
     : []
@@ -57,7 +58,7 @@ export function MetricHistoryDialog({
 
         {rows.length === 0 ? (
           <p className="muted">
-            Пока нет записей. Добавьте в Показателях или импортируйте JSON.
+            Пока нет записей. Измените показатель в настройках дашборда или импортируйте JSON.
           </p>
         ) : (
           <ul className="metric-history-list">
@@ -97,18 +98,6 @@ export function MetricHistoryDialog({
             ))}
           </ul>
         )}
-
-        <footer className="btn-row metric-history-foot">
-          {metricId ? (
-            <Link
-              className="btn btn-primary"
-              to={`/app/indicators#${metricId}`}
-              onClick={onClose}
-            >
-              Править показатели
-            </Link>
-          ) : null}
-        </footer>
       </div>
     </dialog>
   )

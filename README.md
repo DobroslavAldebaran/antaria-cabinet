@@ -52,7 +52,7 @@ Vite + React + TypeScript, HashRouter, Firebase, Google Drive API, zod.
 - `relations.json`, `news-local.json`, `maps.json`, `military.json`
 - `orders/turn-NN.json`
 
-KPI на дашборде: стабильные id (`budget` = Троны, `rob` = РОБ/ОР, `lto`, …). Ведущий показатель: Троны.
+KPI на дашборде: стабильные id (`budget` = Троны, `rob` = РОБ, `lto`, …). Ведущий показатель: Троны. Правка через настройки на дашборде.
 
 ## Экспорт для ИИ / БД
 
