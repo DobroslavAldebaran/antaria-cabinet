@@ -60,16 +60,16 @@ function MetricCell({
         {valueText}
         {unit ? <span className="kpi-unit"> {unit}</span> : null}
       </span>
-      <span className="kpi-foot">
-        <span className="kpi-caption muted">
-          {claimed
-            ? 'заявлено'
-            : display.pendingText
-              ? 'с заявленным'
-              : 'баланс'}
+      {claimed || metric?.note ? (
+        <span className="kpi-foot">
+          {claimed ? (
+            <span className="kpi-caption muted">заявлено</span>
+          ) : null}
+          {metric?.note ? (
+            <span className="kpi-note muted">{metric.note}</span>
+          ) : null}
         </span>
-        {metric?.note ? <span className="kpi-note muted">{metric.note}</span> : null}
-      </span>
+      ) : null}
     </button>
   )
 }
