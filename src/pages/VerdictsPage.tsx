@@ -4,10 +4,16 @@ import { useCabinet } from '../cabinet/CabinetProvider'
 import { EffectsEditor } from '../components/EffectsEditor'
 import { MasterDetailList } from '../components/MasterDetailList'
 import { RichTextEditor } from '../components/RichTextEditor'
-import { saveIndicators, saveVerdictTurn } from '../lib/drive'
+import {
+  deleteVerdictTurn,
+  saveIndicators,
+  saveVerdictTurn,
+} from '../lib/drive'
 import {
   applyEffectsToIndicators,
   committedOrderIds,
+  isVerdictLinked,
+  linkedOrderIds,
   mergeCreatedMetrics,
   normalizeMetrics,
 } from '../schema/metrics'
@@ -56,6 +62,11 @@ export function VerdictsPage() {
     data.verdicts.find((v) => v.turn === currentTurn) ??
     emptyVerdictTurn(currentTurn)
   const alreadyCommitted = committedOrderIds(data.verdicts)
+  const takenElsewhere = linkedOrderIds(data.verdicts, currentTurn)
+  const selectableOrders = ordersPack.items.filter(
+    (item) =>
+      !alreadyCommitted.has(item.id) && !takenElsewhere.has(item.id),
+  )
 
   const setPack = (next: VerdictTurn) => {
     const others = data.verdicts.filter((v) => v.turn !== next.turn)
@@ -66,7 +77,7 @@ export function VerdictsPage() {
   }
 
   const toggleOrder = (orderId: string) => {
-    if (alreadyCommitted.has(orderId)) return
+    if (alreadyCommitted.has(orderId) || takenElsewhere.has(orderId)) return
     const has = pack.orderIds.includes(orderId)
     setPack({
       ...pack,
@@ -80,7 +91,9 @@ export function VerdictsPage() {
     pack.orderIds.includes(item.id),
   )
   const canCommit =
-    pack.orderIds.every((id) => !alreadyCommitted.has(id)) &&
+    pack.orderIds.every(
+      (id) => !alreadyCommitted.has(id) && !takenElsewhere.has(id),
+    ) &&
     (pack.effects.length > 0 ||
       selectedOrders.some(
         (item) =>
@@ -184,12 +197,47 @@ export function VerdictsPage() {
     if (!data.verdicts.some((v) => v.turn === nextTurn)) {
       setPack(emptyVerdictTurn(nextTurn))
     }
+    setErr(null)
+  }
+
+  const deleteCurrent = async () => {
+    setErr(null)
+    setMsg(null)
+    if (isVerdictLinked(pack)) {
+      setErr('Вердикт нельзя удалить: есть фиксации приказов/эффектов')
+      return
+    }
+    const hasDraft =
+      Boolean(pack.body?.trim()) ||
+      pack.orderIds.length > 0 ||
+      pack.effects.length > 0 ||
+      data.verdicts.some((v) => v.turn === currentTurn)
+    if (!hasDraft && !data.verdicts.some((v) => v.turn === currentTurn)) {
+      setErr('Нечего удалять')
+      return
+    }
+    try {
+      const token = await ensureToken()
+      await deleteVerdictTurn(token, binding.folderId, currentTurn)
+      const nextVerdicts = data.verdicts.filter((v) => v.turn !== currentTurn)
+      setData({ ...data, verdicts: nextVerdicts })
+      const nextTurn =
+        nextVerdicts[0]?.turn ??
+        data.orders[0]?.turn ??
+        data.meta.currentTurn ??
+        1
+      setTurn(nextTurn)
+      setMsg(`Вердикт хода ${currentTurn} удалён`)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Ошибка удаления')
+    }
   }
 
   const turnItems = turnList.map((t) => ({ id: String(t) }))
+  const canDeleteVerdict = !isVerdictLinked(pack)
 
   return (
-    <div className="page">
+    <div className="page page-wide">
       <div className="panel">
         <h2>Вердикты</h2>
 
@@ -223,24 +271,25 @@ export function VerdictsPage() {
 
             <div className="stack">
               <h3>Подкрепить приказы хода</h3>
-              {ordersPack.items.length === 0 ? (
-                <p className="muted">В этом ходе ещё нет малых приказов</p>
+              {selectableOrders.length === 0 ? (
+                <p className="muted">
+                  {ordersPack.items.length === 0
+                    ? 'В этом ходе ещё нет малых приказов'
+                    : 'Нет свободных приказов — занятые другими вердиктами скрыты'}
+                </p>
               ) : (
                 <ul className="verdict-order-list">
-                  {ordersPack.items.map((item) => {
-                    const locked = alreadyCommitted.has(item.id)
-                    const checked = locked || pack.orderIds.includes(item.id)
+                  {selectableOrders.map((item) => {
+                    const checked = pack.orderIds.includes(item.id)
                     return (
                       <li key={item.id}>
-                        <label className={locked ? 'muted' : undefined}>
+                        <label>
                           <input
                             type="checkbox"
                             checked={checked}
-                            disabled={locked}
                             onChange={() => toggleOrder(item.id)}
                           />{' '}
                           {item.title || 'Без названия'}
-                          {locked ? ' (уже зафиксирован)' : null}
                           {(item.createdMetrics ?? []).length
                             ? ` · +${(item.createdMetrics ?? []).length} показ.`
                             : null}
@@ -274,6 +323,19 @@ export function VerdictsPage() {
                 onClick={() => void commit()}
               >
                 Зафиксировать
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                disabled={busy || !canDeleteVerdict}
+                title={
+                  canDeleteVerdict
+                    ? undefined
+                    : 'Есть фиксации — удаление недоступно'
+                }
+                onClick={() => void deleteCurrent()}
+              >
+                Удалить вердикт
               </button>
             </div>
             {msg ? <p className="ok">{msg}</p> : null}

@@ -564,6 +564,41 @@ export async function saveVerdictTurn(
   )
 }
 
+async function trashFile(
+  accessToken: string,
+  fileId: string,
+): Promise<void> {
+  await driveFetch(accessToken, `${DRIVE_FILES}/${fileId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ trashed: true }),
+  })
+}
+
+export async function deleteOrdersTurn(
+  accessToken: string,
+  folderId: string,
+  turn: number,
+): Promise<void> {
+  const ordersFolder = await findChild(accessToken, folderId, 'orders')
+  if (!ordersFolder) return
+  const name = `turn-${String(turn).padStart(2, '0')}.json`
+  const existing = await findChild(accessToken, ordersFolder.id, name)
+  if (existing) await trashFile(accessToken, existing.id)
+}
+
+export async function deleteVerdictTurn(
+  accessToken: string,
+  folderId: string,
+  turn: number,
+): Promise<void> {
+  const verdictsFolder = await findChild(accessToken, folderId, 'verdicts')
+  if (!verdictsFolder) return
+  const name = `turn-${String(turn).padStart(2, '0')}.json`
+  const existing = await findChild(accessToken, verdictsFolder.id, name)
+  if (existing) await trashFile(accessToken, existing.id)
+}
+
 export async function saveEvents(
   accessToken: string,
   folderId: string,

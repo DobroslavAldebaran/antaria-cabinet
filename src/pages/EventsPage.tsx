@@ -7,6 +7,7 @@ import { RichTextEditor } from '../components/RichTextEditor'
 import { saveEvents, saveIndicators } from '../lib/drive'
 import {
   applyEffectsToIndicators,
+  isEventLinked,
   mergeCreatedMetrics,
   normalizeMetrics,
 } from '../schema/metrics'
@@ -56,6 +57,11 @@ export function EventsPage() {
     return normalizeMetrics([...metrics, ...(selected.createdMetrics ?? [])])
   }, [metrics, selected])
 
+  const selectedLinked =
+    selected != null && data
+      ? isEventLinked(selected.id, data.indicators.ledger)
+      : false
+
   if (!binding || !data || !events) return <Onboarding />
 
   const setEvents = (next: EventsDoc) => {
@@ -85,6 +91,22 @@ export function EventsPage() {
     }
     setEvents({ ...events, items: [...events.items, item] })
     setSelectedId(item.id)
+    setErr(null)
+  }
+
+  const deleteSelected = () => {
+    if (!selected) return
+    if (isEventLinked(selected.id, data.indicators.ledger)) {
+      setErr(
+        'Событие нельзя удалить: его эффекты уже записаны в историю показателей',
+      )
+      return
+    }
+    const nextItems = events.items.filter((x) => x.id !== selected.id)
+    setEvents({ ...events, items: nextItems })
+    setSelectedId(nextItems[0]?.id ?? null)
+    setErr(null)
+    setMsg('Событие удалено локально — сохраните')
   }
 
   const save = async () => {
@@ -147,12 +169,13 @@ export function EventsPage() {
   }
 
   return (
-    <div className="page">
+    <div className="page page-wide">
       <div className="panel">
         <h2>События</h2>
         <p className="muted">
           Изменения показателей применяются сразу при первом сохранении события с
-          дельтами или новыми показателями. Ход обязателен.
+          дельтами или новыми показателями. Ход обязателен. Удалить можно только
+          событие, ещё не попавшее в историю KPI.
         </p>
 
         <MasterDetailList
@@ -210,16 +233,21 @@ export function EventsPage() {
               <button
                 type="button"
                 className="btn btn-ghost"
-                onClick={() => {
-                  const nextItems = events.items.filter(
-                    (x) => x.id !== selected.id,
-                  )
-                  setEvents({ ...events, items: nextItems })
-                  setSelectedId(nextItems[0]?.id ?? null)
-                }}
+                disabled={selectedLinked}
+                title={
+                  selectedLinked
+                    ? 'Уже в истории показателей — удаление недоступно'
+                    : undefined
+                }
+                onClick={deleteSelected}
               >
                 Удалить
               </button>
+              {selectedLinked ? (
+                <p className="muted">
+                  Событие уже применено к показателям, удалить нельзя.
+                </p>
+              ) : null}
             </div>
           ) : (
             <p className="muted">Выберите событие слева или создайте новое.</p>

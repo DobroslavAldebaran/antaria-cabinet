@@ -115,6 +115,10 @@ button {
   padding: 1.5rem 0 3rem;
 }
 
+.page.page-wide {
+  width: min(1600px, calc(100% - 1.5rem));
+}
+
 .page.dash {
   width: 100%;
   max-width: none;
@@ -1017,6 +1021,7 @@ button {
   gap: 1rem;
   align-items: start;
   margin-top: 0.75rem;
+  width: 100%;
 }
 
 .master-detail-list {

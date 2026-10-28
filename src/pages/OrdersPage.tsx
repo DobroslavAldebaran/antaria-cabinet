@@ -6,7 +6,7 @@ import { MasterDetailList } from '../components/MasterDetailList'
 import { RichTextEditor } from '../components/RichTextEditor'
 import { saveOrdersTurn } from '../lib/drive'
 import { parseOrdersMarkdown } from '../lib/mdOrders'
-import { normalizeMetrics } from '../schema/metrics'
+import { isOrderLinked, normalizeMetrics } from '../schema/metrics'
 import {
   emptyOrdersTurn,
   newId,
@@ -22,6 +22,7 @@ export function OrdersPage() {
   const [searchParams] = useSearchParams()
   const [turn, setTurn] = useState(0)
   const [msg, setMsg] = useState<string | null>(null)
+  const [err, setErr] = useState<string | null>(null)
   const [md, setMd] = useState('')
   const [mdOpen, setMdOpen] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -61,6 +62,11 @@ export function OrdersPage() {
     return normalizeMetrics([...metrics, ...(selected.createdMetrics ?? [])])
   }, [metrics, selected])
 
+  const selectedLinked =
+    selected != null && data
+      ? isOrderLinked(selected.id, data.verdicts)
+      : false
+
   if (!binding || !data) return <Onboarding />
 
   const setPack = (next: OrdersTurn) => {
@@ -99,9 +105,26 @@ export function OrdersPage() {
       items: [...pack.items, item],
     })
     setSelectedId(item.id)
+    setErr(null)
+  }
+
+  const deleteSelected = () => {
+    if (!selected) return
+    if (isOrderLinked(selected.id, data.verdicts)) {
+      setErr(
+        'Приказ нельзя удалить: он уже подвязан к вердикту (черновик или фиксация)',
+      )
+      return
+    }
+    const nextItems = pack.items.filter((x) => x.id !== selected.id)
+    setPack({ ...pack, turn: currentTurn, items: nextItems })
+    setSelectedId(nextItems[0]?.id ?? null)
+    setErr(null)
+    setMsg('Приказ удалён локально — сохраните ход')
   }
 
   const save = async () => {
+    setErr(null)
     const token = await ensureToken()
     const next = { ...pack, turn: currentTurn, updatedAt: nowIso() }
     await saveOrdersTurn(token, binding.folderId, next)
@@ -110,7 +133,7 @@ export function OrdersPage() {
   }
 
   return (
-    <div className="page">
+    <div className="page page-wide">
       <div className="panel">
         <h2>Приказы</h2>
         <div className="field">
@@ -191,16 +214,21 @@ export function OrdersPage() {
               <button
                 type="button"
                 className="btn btn-ghost"
-                onClick={() => {
-                  const nextItems = pack.items.filter(
-                    (x) => x.id !== selected.id,
-                  )
-                  setPack({ ...pack, turn: currentTurn, items: nextItems })
-                  setSelectedId(nextItems[0]?.id ?? null)
-                }}
+                disabled={selectedLinked}
+                title={
+                  selectedLinked
+                    ? 'Подвязан к вердикту — удаление недоступно'
+                    : undefined
+                }
+                onClick={deleteSelected}
               >
                 Удалить
               </button>
+              {selectedLinked ? (
+                <p className="muted">
+                  Приказ подвязан к вердикту, удалить нельзя.
+                </p>
+              ) : null}
             </div>
           ) : (
             <p className="muted">Выберите приказ слева или создайте новый.</p>
@@ -218,6 +246,7 @@ export function OrdersPage() {
           </button>
         </div>
         {msg ? <p className="ok">{msg}</p> : null}
+        {err ? <p className="error">{err}</p> : null}
       </div>
 
       <div className="panel">

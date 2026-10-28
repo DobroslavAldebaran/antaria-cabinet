@@ -76,6 +76,37 @@ export function committedOrderIds(verdicts: VerdictTurn[]): Set<string> {
   return ids
 }
 
+/** Orders already claimed by any verdict commit or draft selection. */
+export function linkedOrderIds(
+  verdicts: VerdictTurn[],
+  exceptTurn?: number,
+): Set<string> {
+  const ids = committedOrderIds(verdicts)
+  for (const v of verdicts) {
+    if (exceptTurn != null && v.turn === exceptTurn) continue
+    for (const id of v.orderIds) ids.add(id)
+  }
+  return ids
+}
+
+export function isOrderLinked(
+  orderId: string,
+  verdicts: VerdictTurn[],
+): boolean {
+  return linkedOrderIds(verdicts).has(orderId)
+}
+
+export function isEventLinked(
+  eventId: string,
+  ledger: MetricLedgerEntry[] | undefined,
+): boolean {
+  return (ledger ?? []).some((row) => row.eventId === eventId)
+}
+
+export function isVerdictLinked(verdict: VerdictTurn): boolean {
+  return verdict.commits.length > 0
+}
+
 /** Sum of order effects not yet included in any verdict commit. */
 export function sumPendingByMetric(
   orders: OrdersTurn[],
