@@ -7,9 +7,9 @@ import { RichTextEditor } from '../components/RichTextEditor'
 import { saveEvents, saveIndicators } from '../lib/drive'
 import {
   applyEffectsToIndicators,
-  isEventLinked,
   mergeCreatedMetrics,
   normalizeMetrics,
+  revertEventFromIndicators,
 } from '../schema/metrics'
 import {
   newId,
@@ -57,11 +57,6 @@ export function EventsPage() {
     return normalizeMetrics([...metrics, ...(selected.createdMetrics ?? [])])
   }, [metrics, selected])
 
-  const selectedLinked =
-    selected != null && data
-      ? isEventLinked(selected.id, data.indicators.ledger)
-      : false
-
   if (!binding || !data || !events) return <Onboarding />
 
   const setEvents = (next: EventsDoc) => {
@@ -94,19 +89,35 @@ export function EventsPage() {
     setErr(null)
   }
 
-  const deleteSelected = () => {
+  const deleteSelected = async () => {
     if (!selected) return
-    if (isEventLinked(selected.id, data.indicators.ledger)) {
-      setErr(
-        'Событие нельзя удалить: его эффекты уже записаны в историю показателей',
-      )
-      return
-    }
-    const nextItems = events.items.filter((x) => x.id !== selected.id)
-    setEvents({ ...events, items: nextItems })
-    setSelectedId(nextItems[0]?.id ?? null)
     setErr(null)
-    setMsg('Событие удалено локально — сохраните')
+    setMsg(null)
+    try {
+      const token = await ensureToken()
+      const indicators = revertEventFromIndicators(
+        data.indicators,
+        selected.id,
+      )
+      const nextEvents: EventsDoc = {
+        ...events,
+        items: events.items.filter((x) => x.id !== selected.id),
+        updatedAt: nowIso(),
+      }
+      if (indicators !== data.indicators) {
+        await saveIndicators(token, binding.folderId, indicators)
+      }
+      await saveEvents(token, binding.folderId, nextEvents)
+      setData({ ...data, indicators, events: nextEvents })
+      setSelectedId(nextEvents.items[0]?.id ?? null)
+      setMsg(
+        indicators !== data.indicators
+          ? 'Событие удалено, изменения показателей откачены'
+          : 'Событие удалено',
+      )
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Ошибка удаления')
+    }
   }
 
   const save = async () => {
@@ -174,8 +185,8 @@ export function EventsPage() {
         <h2>События</h2>
         <p className="muted">
           Изменения показателей применяются сразу при первом сохранении события с
-          дельтами или новыми показателями. Ход обязателен. Удалить можно только
-          событие, ещё не попавшее в историю KPI.
+          дельтами или новыми показателями. Ход обязателен. Удаление откатывает
+          уже применённые эффекты этого события.
         </p>
 
         <MasterDetailList
@@ -233,21 +244,11 @@ export function EventsPage() {
               <button
                 type="button"
                 className="btn btn-ghost"
-                disabled={selectedLinked}
-                title={
-                  selectedLinked
-                    ? 'Уже в истории показателей — удаление недоступно'
-                    : undefined
-                }
-                onClick={deleteSelected}
+                disabled={busy}
+                onClick={() => void deleteSelected()}
               >
                 Удалить
               </button>
-              {selectedLinked ? (
-                <p className="muted">
-                  Событие уже применено к показателям, удалить нельзя.
-                </p>
-              ) : null}
             </div>
           ) : (
             <p className="muted">Выберите событие слева или создайте новое.</p>

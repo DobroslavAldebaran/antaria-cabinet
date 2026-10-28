@@ -96,15 +96,50 @@ export function isOrderLinked(
   return linkedOrderIds(verdicts).has(orderId)
 }
 
-export function isEventLinked(
-  eventId: string,
-  ledger: MetricLedgerEntry[] | undefined,
-): boolean {
-  return (ledger ?? []).some((row) => row.eventId === eventId)
-}
-
 export function isVerdictLinked(verdict: VerdictTurn): boolean {
   return verdict.commits.length > 0
+}
+
+/** Undo an event's ledger impact (effects + birth metrics) and drop its rows. */
+export function revertEventFromIndicators(
+  indicators: Indicators,
+  eventId: string,
+): Indicators {
+  const ledger = indicators.ledger ?? []
+  const eventRows = ledger.filter((row) => row.eventId === eventId)
+  if (eventRows.length === 0) return indicators
+
+  let metrics = [...indicators.metrics]
+
+  for (const row of eventRows) {
+    if (isBirthLedgerEntry(row)) continue
+    const delta = parseMetricNumber(row.delta)
+    if (delta == null) continue
+    const idx = metrics.findIndex((m) => m.id === row.metricId)
+    if (idx < 0) continue
+    const current = parseMetricNumber(metrics[idx].value)
+    if (current == null) continue
+    metrics[idx] = { ...metrics[idx], value: current - delta }
+  }
+
+  const bornIds = new Set(
+    eventRows.filter(isBirthLedgerEntry).map((row) => row.metricId),
+  )
+  if (bornIds.size > 0) {
+    metrics = metrics.filter((m) => !bornIds.has(m.id))
+  }
+
+  const keepIds = new Set(metrics.map((m) => m.id))
+  const nextLedger = ledger.filter(
+    (row) => row.eventId !== eventId && keepIds.has(row.metricId),
+  )
+
+  return {
+    ...indicators,
+    metrics,
+    ledger: nextLedger,
+    updatedAt: nowIso(),
+  }
 }
 
 /** Sum of order effects not yet included in any verdict commit. */
