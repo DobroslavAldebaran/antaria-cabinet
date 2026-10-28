@@ -52,6 +52,8 @@ export const MetricLedgerKindSchema = z.enum([
   'order',
   'between_turns',
   'manual',
+  'verdict',
+  'event',
 ])
 export type MetricLedgerKind = z.infer<typeof MetricLedgerKindSchema>
 
@@ -65,10 +67,20 @@ export const MetricLedgerEntrySchema = z.object({
   title: z.string(),
   orderTurn: z.number().int().optional(),
   orderId: z.string().optional(),
+  verdictTurn: z.number().int().optional(),
+  eventId: z.string().optional(),
   note: z.string().optional(),
   at: z.string().optional(),
 })
 export type MetricLedgerEntry = z.infer<typeof MetricLedgerEntrySchema>
+
+export const EffectSchema = z.object({
+  id: z.string(),
+  metricId: z.string(),
+  delta: z.number(),
+  note: z.string().optional(),
+})
+export type Effect = z.infer<typeof EffectSchema>
 
 export const IndicatorsSchema = z.object({
   schemaVersion: z.literal(SCHEMA_VERSION),
@@ -122,6 +134,8 @@ export const OrderItemSchema = z.object({
   responsible: z.string().optional(),
   secret: z.boolean().default(false),
   expectation: z.string().optional(),
+  /** Additive: old orders without effects still parse. */
+  effects: z.array(EffectSchema).default([]),
 })
 export type OrderItem = z.infer<typeof OrderItemSchema>
 
@@ -133,6 +147,44 @@ export const OrdersTurnSchema = z.object({
   updatedAt: z.string(),
 })
 export type OrdersTurn = z.infer<typeof OrdersTurnSchema>
+
+export const VerdictCommitSchema = z.object({
+  id: z.string(),
+  at: z.string(),
+  orderIds: z.array(z.string()).default([]),
+  effects: z.array(EffectSchema).default([]),
+})
+export type VerdictCommit = z.infer<typeof VerdictCommitSchema>
+
+export const VerdictTurnSchema = z.object({
+  schemaVersion: z.literal(SCHEMA_VERSION),
+  turn: z.number().int().nonnegative(),
+  body: z.string().default(''),
+  /** Draft: small orders marked for the next commit. */
+  orderIds: z.array(z.string()).default([]),
+  /** Draft: verdict-own effects for the next commit. */
+  effects: z.array(EffectSchema).default([]),
+  commits: z.array(VerdictCommitSchema).default([]),
+  updatedAt: z.string(),
+})
+export type VerdictTurn = z.infer<typeof VerdictTurnSchema>
+
+export const CabinetEventSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  body: z.string().optional(),
+  turn: z.number().int().optional(),
+  at: z.string(),
+  effects: z.array(EffectSchema).default([]),
+})
+export type CabinetEvent = z.infer<typeof CabinetEventSchema>
+
+export const EventsSchema = z.object({
+  schemaVersion: z.literal(SCHEMA_VERSION),
+  items: z.array(CabinetEventSchema).default([]),
+  updatedAt: z.string(),
+})
+export type EventsDoc = z.infer<typeof EventsSchema>
 
 export const RelationPartySchema = z.object({
   id: z.string(),
@@ -245,6 +297,21 @@ export function emptyOrdersTurn(turn: number): OrdersTurn {
   return OrdersTurnSchema.parse({
     schemaVersion: SCHEMA_VERSION,
     turn,
+    updatedAt: nowIso(),
+  })
+}
+
+export function emptyVerdictTurn(turn: number): VerdictTurn {
+  return VerdictTurnSchema.parse({
+    schemaVersion: SCHEMA_VERSION,
+    turn,
+    updatedAt: nowIso(),
+  })
+}
+
+export function emptyEvents(): EventsDoc {
+  return EventsSchema.parse({
+    schemaVersion: SCHEMA_VERSION,
     updatedAt: nowIso(),
   })
 }

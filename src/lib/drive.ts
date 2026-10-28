@@ -2,6 +2,7 @@ import {
   AntariaMetaSchema,
   BoardSchema,
   emptyBoard,
+  emptyEvents,
   emptyIndicators,
   emptyMaps,
   emptyMeta,
@@ -9,6 +10,7 @@ import {
   emptyNews,
   emptyProfile,
   emptyRelations,
+  EventsSchema,
   IndicatorsSchema,
   MapsSchema,
   MilitarySchema,
@@ -17,8 +19,10 @@ import {
   OrdersTurnSchema,
   ProfileSchema,
   RelationsSchema,
+  VerdictTurnSchema,
   type AntariaMeta,
   type Board,
+  type EventsDoc,
   type Indicators,
   type Maps,
   type Military,
@@ -26,6 +30,7 @@ import {
   type OrdersTurn,
   type Profile,
   type Relations,
+  type VerdictTurn,
 } from '../schema/province'
 import { normalizeIndicators } from '../schema/metrics'
 import type { AntariaExport } from '../schema/export'
@@ -213,9 +218,14 @@ export async function initCabinetFolder(
   await ensure('news-local.json', emptyNews())
   await ensure('maps.json', emptyMaps())
   await ensure('military.json', emptyMilitary())
+  await ensure('events.json', emptyEvents())
   const orders = await findChild(accessToken, folderId, 'orders')
   if (!orders) {
     await createSubfolder(accessToken, folderId, 'orders')
+  }
+  const verdicts = await findChild(accessToken, folderId, 'verdicts')
+  if (!verdicts) {
+    await createSubfolder(accessToken, folderId, 'verdicts')
   }
 }
 
@@ -229,6 +239,8 @@ export type CabinetData = {
   maps: Maps
   military: Military
   orders: OrdersTurn[]
+  verdicts: VerdictTurn[]
+  events: EventsDoc
 }
 
 export async function loadCabinet(
@@ -310,7 +322,43 @@ export async function loadCabinet(
   }
   orders.sort((a, b) => b.turn - a.turn)
 
-  return { meta, profile, indicators, board, relations, news, maps, military, orders }
+  let verdictsFolder = await findChild(accessToken, folderId, 'verdicts')
+  if (!verdictsFolder) {
+    verdictsFolder = await createSubfolder(accessToken, folderId, 'verdicts')
+  }
+  const verdictFiles = await listChildren(accessToken, verdictsFolder.id)
+  const verdicts: VerdictTurn[] = []
+  for (const f of verdictFiles.filter((x) => x.name.endsWith('.json'))) {
+    try {
+      const raw = await readJsonFile<unknown>(accessToken, f.id)
+      verdicts.push(VerdictTurnSchema.parse(raw))
+    } catch {
+      /* skip invalid */
+    }
+  }
+  verdicts.sort((a, b) => b.turn - a.turn)
+
+  const events = await readOrDefault(
+    accessToken,
+    folderId,
+    'events.json',
+    (r) => EventsSchema.parse(r),
+    emptyEvents,
+  )
+
+  return {
+    meta,
+    profile,
+    indicators,
+    board,
+    relations,
+    news,
+    maps,
+    military,
+    orders,
+    verdicts,
+    events,
+  }
 }
 
 export async function saveMeta(
@@ -422,6 +470,37 @@ export async function saveOrdersTurn(
   )
 }
 
+export async function saveVerdictTurn(
+  accessToken: string,
+  folderId: string,
+  turn: VerdictTurn,
+): Promise<void> {
+  let verdictsFolder = await findChild(accessToken, folderId, 'verdicts')
+  if (!verdictsFolder) {
+    verdictsFolder = await createSubfolder(accessToken, folderId, 'verdicts')
+  }
+  const name = `turn-${String(turn.turn).padStart(2, '0')}.json`
+  const existing = await findChild(accessToken, verdictsFolder.id, name)
+  await writeJsonFile(
+    accessToken,
+    verdictsFolder.id,
+    name,
+    { ...turn, updatedAt: nowIso() },
+    existing?.id,
+  )
+}
+
+export async function saveEvents(
+  accessToken: string,
+  folderId: string,
+  events: EventsDoc,
+): Promise<void> {
+  await upsertJson(accessToken, folderId, 'events.json', {
+    ...events,
+    updatedAt: nowIso(),
+  })
+}
+
 export function cabinetToExport(data: CabinetData): AntariaExport {
   return {
     format: EXPORT_FORMAT,
@@ -433,6 +512,8 @@ export function cabinetToExport(data: CabinetData): AntariaExport {
     indicators: normalizeIndicators(data.indicators),
     board: data.board,
     orders: data.orders,
+    verdicts: data.verdicts,
+    events: data.events,
     relations: data.relations,
     newsLocal: data.news,
     maps: data.maps,
@@ -454,7 +535,11 @@ export async function writeExportToDrive(
   await saveNews(accessToken, folderId, exp.newsLocal)
   await saveMaps(accessToken, folderId, exp.maps)
   await saveMilitary(accessToken, folderId, exp.military)
+  await saveEvents(accessToken, folderId, exp.events)
   for (const turn of exp.orders) {
     await saveOrdersTurn(accessToken, folderId, turn)
+  }
+  for (const turn of exp.verdicts) {
+    await saveVerdictTurn(accessToken, folderId, turn)
   }
 }

@@ -53,6 +53,7 @@ export function parseOrdersMarkdown(md: string): OrderItem[] {
       responsible: responsible?.replace(/\*\*/g, '') ?? undefined,
       secret,
       expectation: expectation ?? undefined,
+      effects: [],
     })
   }
 

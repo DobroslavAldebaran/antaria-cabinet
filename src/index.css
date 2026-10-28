@@ -880,3 +880,103 @@ button {
     transform: none;
   }
 }
+
+.effects-editor {
+  margin-top: 0.5rem;
+  padding: 0.65rem 0;
+  border-top: 1px solid var(--line);
+}
+
+.effects-editor-title {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--ink-dim);
+}
+
+.effects-row {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1.4fr) 6.5rem minmax(6rem, 1fr) auto;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.effects-delta,
+.effects-note {
+  width: 100%;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--ink);
+}
+
+.metric-picker {
+  position: relative;
+}
+
+.metric-picker-trigger {
+  width: 100%;
+  justify-content: space-between;
+  min-height: 2.25rem;
+}
+
+.metric-picker-chevron {
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-left: 0.45rem;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg);
+  opacity: 0.75;
+}
+
+.metric-picker-list {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 0.2rem);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 0.25rem;
+  list-style: none;
+  border: 1px solid var(--line);
+  background: var(--panel, #16141f);
+  max-height: 14rem;
+  overflow: auto;
+}
+
+.metric-picker-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  padding: 0.45rem 0.55rem;
+  cursor: pointer;
+}
+
+.metric-picker-option:hover,
+.metric-picker-option:focus-visible,
+.metric-picker-option.is-selected {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.verdict-order-list {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.list-block.is-focused {
+  outline: 1px solid var(--accent-2);
+  outline-offset: 0.25rem;
+}
+
+@media (max-width: 720px) {
+  .effects-row {
+    grid-template-columns: 1fr;
+  }
+}

@@ -18,6 +18,8 @@ export function Layout() {
               [
                 ['/app', 'Дашборд'],
                 ['/app/orders', 'Приказы'],
+                ['/app/verdicts', 'Вердикты'],
+                ['/app/events', 'События'],
                 ['/app/relations', 'Отношения'],
                 ['/app/profile', 'Профиль'],
                 ['/app/maps', 'Карты'],

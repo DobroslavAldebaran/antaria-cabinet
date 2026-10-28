@@ -85,15 +85,35 @@ export function MetricHistoryDialog({
                   </span>
                   {row.note ? <p className="muted metric-history-note">{row.note}</p> : null}
                 </div>
-                {row.orderTurn != null ? (
-                  <Link
-                    className="btn btn-ghost"
-                    to={`/app/orders?turn=${row.orderTurn}`}
-                    onClick={onClose}
-                  >
-                    К приказу
-                  </Link>
-                ) : null}
+                <div className="btn-row">
+                  {row.orderTurn != null ? (
+                    <Link
+                      className="btn btn-ghost"
+                      to={`/app/orders?turn=${row.orderTurn}`}
+                      onClick={onClose}
+                    >
+                      К приказу
+                    </Link>
+                  ) : null}
+                  {row.verdictTurn != null ? (
+                    <Link
+                      className="btn btn-ghost"
+                      to={`/app/verdicts?turn=${row.verdictTurn}`}
+                      onClick={onClose}
+                    >
+                      К вердикту
+                    </Link>
+                  ) : null}
+                  {row.eventId ? (
+                    <Link
+                      className="btn btn-ghost"
+                      to={`/app/events?id=${row.eventId}`}
+                      onClick={onClose}
+                    >
+                      К событию
+                    </Link>
+                  ) : null}
+                </div>
               </li>
             ))}
           </ul>

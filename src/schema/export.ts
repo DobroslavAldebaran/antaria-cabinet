@@ -2,6 +2,7 @@ import { z } from 'zod'
 import {
   AntariaMetaSchema,
   BoardSchema,
+  EventsSchema,
   IndicatorsSchema,
   MapsSchema,
   MilitarySchema,
@@ -10,6 +11,8 @@ import {
   ProfileSchema,
   RelationsSchema,
   SCHEMA_VERSION,
+  VerdictTurnSchema,
+  emptyEvents,
   emptyMilitary,
 } from './province'
 
@@ -26,6 +29,9 @@ export const AntariaExportSchema = z.object({
   indicators: IndicatorsSchema,
   board: BoardSchema,
   orders: z.array(OrdersTurnSchema).default([]),
+  /** Additive: old exports without verdicts/events still parse. */
+  verdicts: z.array(VerdictTurnSchema).default([]),
+  events: EventsSchema.default(() => emptyEvents()),
   relations: RelationsSchema,
   newsLocal: NewsLocalSchema,
   maps: MapsSchema,

@@ -5,28 +5,42 @@ import { DashboardSettingsDialog } from '../components/DashboardSettingsDialog'
 import { MetricHistoryDialog } from '../components/MetricHistoryDialog'
 import { saveIndicators } from '../lib/drive'
 import {
-  formatMetricValue,
+  formatCommittedWithPending,
   metricDisplayUnit,
   metricLabel,
   normalizeIndicators,
   normalizeMetrics,
+  parseMetricNumber,
+  sumPendingByMetric,
 } from '../schema/metrics'
-import { nowIso, type Metric } from '../schema/province'
+import { newId, nowIso, type Metric } from '../schema/province'
 import { Onboarding } from './Onboarding'
 
 function MetricCell({
   metric,
   id,
+  pending,
   onOpen,
 }: {
   metric: Metric | undefined
   id: string
+  pending: number
   onOpen: (id: string) => void
 }) {
   const label = metric?.label || metricLabel(metric ? [metric] : [], id)
-  const valueText = metric ? formatMetricValue(metric) : '-'
-  const unit = metric ? metricDisplayUnit(metric) : ''
-  const aria = `${label}, стартовое значение: ${valueText}${unit ? ` ${unit}` : ''}. Открыть историю`
+  const numeric = metric ? parseMetricNumber(metric.value) : null
+  const display =
+    metric && numeric != null
+      ? formatCommittedWithPending(metric.value, pending, metric)
+      : {
+          base: metric ? String(metric.value ?? '-') : '-',
+          pendingText: null as string | null,
+        }
+  const valueText = display.pendingText
+    ? `${display.base} (${display.pendingText})`
+    : display.base
+  const unit = metric && !display.pendingText ? metricDisplayUnit(metric) : ''
+  const aria = `${label}, значение: ${valueText}${unit ? ` ${unit}` : ''}. Открыть историю`
 
   return (
     <button
@@ -42,7 +56,9 @@ function MetricCell({
         {unit ? <span className="kpi-unit"> {unit}</span> : null}
       </span>
       <span className="kpi-foot">
-        <span className="kpi-caption muted">старт</span>
+        <span className="kpi-caption muted">
+          {display.pendingText ? 'с заявленным' : 'баланс'}
+        </span>
         {metric?.note ? <span className="kpi-note muted">{metric.note}</span> : null}
       </span>
     </button>
@@ -74,15 +90,39 @@ export function Dashboard() {
 
   const metrics = normalizeMetrics(data.indicators.metrics)
   const ledger = data.indicators.ledger ?? []
+  const pendingMap = sumPendingByMetric(data.orders, data.verdicts)
   const orderCount = data.orders.reduce((n, t) => n + t.items.length, 0)
 
   const changeMetrics = (nextMetrics: Metric[]) => {
     setSettingsMsg(null)
+    const prevById = new Map(data.indicators.metrics.map((m) => [m.id, m]))
+    const at = nowIso()
+    const ledger = [...(data.indicators.ledger ?? [])]
+
+    for (const metric of nextMetrics) {
+      const prev = prevById.get(metric.id)
+      if (!prev || prev.value === metric.value) continue
+      const prevN = parseMetricNumber(prev.value)
+      const nextN = parseMetricNumber(metric.value)
+      if (prevN == null || nextN == null || prevN === nextN) continue
+      ledger.push({
+        id: newId('led'),
+        metricId: metric.id,
+        kind: 'manual',
+        delta: nextN - prevN,
+        balanceAfter: nextN,
+        title: `Правка: ${metric.label || metric.id}`,
+        at,
+      })
+    }
+
     setData({
       ...data,
       indicators: normalizeIndicators({
         ...data.indicators,
         metrics: nextMetrics,
+        ledger,
+        updatedAt: at,
       }),
     })
   }
@@ -92,8 +132,6 @@ export function Dashboard() {
     const token = await ensureToken()
     const next = normalizeIndicators({
       ...data.indicators,
-      metrics: data.indicators.metrics,
-      ledger: data.indicators.ledger ?? [],
       updatedAt: nowIso(),
     })
     await saveIndicators(token, binding.folderId, next)
@@ -123,19 +161,20 @@ export function Dashboard() {
         </header>
 
         {metrics.length > 0 ? (
-          <section className="dash-kpi-grid" aria-label="Стартовые показатели">
+          <section className="dash-kpi-grid" aria-label="Показатели">
             {metrics.map((metric) => (
               <MetricCell
                 key={metric.id}
                 metric={metric}
                 id={metric.id}
+                pending={pendingMap.get(metric.id) ?? 0}
                 onOpen={setHistoryId}
               />
             ))}
           </section>
         ) : (
           <p className="muted dash-kpi-empty">
-            Нет показателей. Добавьте стартовые значения в настройках.
+            Нет показателей. Добавьте значения в настройках.
           </p>
         )}
       </div>
@@ -144,6 +183,10 @@ export function Dashboard() {
         <Link to="/app/orders">
           Приказы{orderCount ? ` (${orderCount})` : ''}
         </Link>
+        {' · '}
+        <Link to="/app/verdicts">Вердикты</Link>
+        {' · '}
+        <Link to="/app/events">События</Link>
       </footer>
 
       <MetricHistoryDialog

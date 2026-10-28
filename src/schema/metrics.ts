@@ -1,8 +1,13 @@
-import type {
-  Indicators,
-  Metric,
-  MetricLedgerEntry,
-  MetricLedgerKind,
+import {
+  newId,
+  nowIso,
+  type Effect,
+  type Indicators,
+  type Metric,
+  type MetricLedgerEntry,
+  type MetricLedgerKind,
+  type OrdersTurn,
+  type VerdictTurn,
 } from './province'
 
 /** Known KPI ids: optional formatting hints only, not locked system metrics. */
@@ -50,6 +55,145 @@ export const LEDGER_KIND_LABELS: Record<MetricLedgerKind, string> = {
   order: 'Приказ',
   between_turns: 'Между ходами',
   manual: 'Вручную',
+  verdict: 'Вердикт',
+  event: 'Событие',
+}
+
+export function parseMetricNumber(raw: string | number | undefined): number | null {
+  if (raw === undefined || raw === '') return null
+  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null
+  const num = Number(String(raw).replace(/\s/g, '').replace(',', '.'))
+  return Number.isFinite(num) ? num : null
+}
+
+export function committedOrderIds(verdicts: VerdictTurn[]): Set<string> {
+  const ids = new Set<string>()
+  for (const v of verdicts) {
+    for (const c of v.commits) {
+      for (const id of c.orderIds) ids.add(id)
+    }
+  }
+  return ids
+}
+
+/** Sum of order effects not yet included in any verdict commit. */
+export function sumPendingByMetric(
+  orders: OrdersTurn[],
+  verdicts: VerdictTurn[],
+): Map<string, number> {
+  const committed = committedOrderIds(verdicts)
+  const pending = new Map<string, number>()
+  for (const turn of orders) {
+    for (const item of turn.items) {
+      if (committed.has(item.id)) continue
+      for (const effect of item.effects ?? []) {
+        pending.set(
+          effect.metricId,
+          (pending.get(effect.metricId) ?? 0) + effect.delta,
+        )
+      }
+    }
+  }
+  return pending
+}
+
+export type ApplyEffectMeta = {
+  kind: Exclude<MetricLedgerKind, 'start'>
+  title: string
+  turn?: number
+  orderId?: string
+  orderTurn?: number
+  verdictTurn?: number
+  eventId?: string
+  note?: string
+  at?: string
+}
+
+/** Apply numeric deltas to metrics and append ledger rows. */
+export function applyEffectsToIndicators(
+  indicators: Indicators,
+  effects: Effect[],
+  meta: ApplyEffectMeta,
+): Indicators {
+  if (effects.length === 0) return indicators
+  const metrics = [...indicators.metrics]
+  const ledger = [...(indicators.ledger ?? [])]
+  const at = meta.at ?? nowIso()
+
+  for (const effect of effects) {
+    const idx = metrics.findIndex((m) => m.id === effect.metricId)
+    if (idx < 0) continue
+    const metric = metrics[idx]
+    const current = parseMetricNumber(metric.value)
+    if (current == null) continue
+    const balanceAfter = current + effect.delta
+    metrics[idx] = { ...metric, value: balanceAfter }
+    ledger.push({
+      id: newId('led'),
+      metricId: effect.metricId,
+      kind: meta.kind,
+      turn: meta.turn,
+      delta: effect.delta,
+      balanceAfter,
+      title: meta.title,
+      orderId: meta.orderId,
+      orderTurn: meta.orderTurn,
+      verdictTurn: meta.verdictTurn,
+      eventId: meta.eventId,
+      note: effect.note ?? meta.note,
+      at,
+    })
+  }
+
+  return {
+    ...indicators,
+    metrics,
+    ledger,
+    updatedAt: at,
+  }
+}
+
+/** Record a manual value change when the numeric balance actually moves. */
+export function applyManualMetricValue(
+  indicators: Indicators,
+  metricId: string,
+  nextValue: string | number,
+  title = 'Ручная правка',
+): Indicators {
+  const metric = indicators.metrics.find((m) => m.id === metricId)
+  if (!metric) return indicators
+  const prev = parseMetricNumber(metric.value)
+  const next = parseMetricNumber(nextValue)
+  const metrics = indicators.metrics.map((m) =>
+    m.id === metricId ? { ...m, value: nextValue } : m,
+  )
+  if (prev == null || next == null || prev === next) {
+    return { ...indicators, metrics, updatedAt: nowIso() }
+  }
+  const at = nowIso()
+  const ledger = [
+    ...(indicators.ledger ?? []),
+    {
+      id: newId('led'),
+      metricId,
+      kind: 'manual' as const,
+      delta: next - prev,
+      balanceAfter: next,
+      title,
+      at,
+    },
+  ]
+  return { ...indicators, metrics, ledger, updatedAt: at }
+}
+
+export function formatCommittedWithPending(
+  committed: string | number,
+  pending: number,
+  metric: Pick<Metric, 'id' | 'unit'>,
+): { base: string; pendingText: string | null } {
+  const base = formatMetricValue({ ...metric, value: committed })
+  if (!pending) return { base, pendingText: null }
+  return { base, pendingText: formatLedgerAmount(pending, true) }
 }
 
 export function isKnownMetricId(id: string): id is MetricId {

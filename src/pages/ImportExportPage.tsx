@@ -14,7 +14,14 @@ type ImportPhase =
       kind: 'done'
       fileName: string
       province: string
-      summary: { orders: number; board: number; ministries: number; relations: number }
+      summary: {
+        orders: number
+        verdicts: number
+        events: number
+        board: number
+        ministries: number
+        relations: number
+      }
     }
   | { kind: 'error'; fileName?: string; message: string }
 
@@ -105,6 +112,8 @@ export function ImportExportPage() {
                 schemaVersion: snapshot.schemaVersion,
                 province: snapshot.province.provinceName,
                 orders: snapshot.orders.length,
+                verdicts: snapshot.verdicts.length,
+                events: snapshot.events.items.length,
               },
               null,
               2,
@@ -131,6 +140,8 @@ export function ImportExportPage() {
             </p>
             <ul className="import-result__stats">
               <li>Приказы (ходы): {importPhase.summary.orders}</li>
+              <li>Вердикты (ходы): {importPhase.summary.verdicts}</li>
+              <li>События: {importPhase.summary.events}</li>
               <li>Пункты доски: {importPhase.summary.board}</li>
               <li>Министерства: {importPhase.summary.ministries}</li>
               <li>Отношения: {importPhase.summary.relations}</li>
@@ -206,6 +217,8 @@ export function ImportExportPage() {
 function summarize(exp: AntariaExport) {
   return {
     orders: exp.orders.length,
+    verdicts: exp.verdicts.length,
+    events: exp.events.items.length,
     board: exp.board.items.length,
     ministries: exp.profile.ministries.length,
     relations: exp.relations.parties.length,

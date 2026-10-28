@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useCabinet } from '../cabinet/CabinetProvider'
+import { EffectsEditor } from '../components/EffectsEditor'
 import { saveOrdersTurn } from '../lib/drive'
 import { parseOrdersMarkdown } from '../lib/mdOrders'
+import { normalizeMetrics } from '../schema/metrics'
 import {
   emptyOrdersTurn,
   newId,
@@ -28,6 +30,7 @@ export function OrdersPage() {
   if (!binding || !data) return <Onboarding />
 
   const currentTurn = turn || data.meta.currentTurn || 1
+  const metrics = normalizeMetrics(data.indicators.metrics)
   const pack: OrdersTurn =
     data.orders.find((o) => o.turn === currentTurn) ?? emptyOrdersTurn(currentTurn)
 
@@ -103,6 +106,15 @@ export function OrdersPage() {
                 }}
               />
             </div>
+            <EffectsEditor
+              effects={item.effects ?? []}
+              metrics={metrics}
+              onChange={(effects) => {
+                const items = [...pack.items]
+                items[idx] = { ...item, effects }
+                setPack({ ...pack, items })
+              }}
+            />
             <label>
               <input
                 type="checkbox"
@@ -137,7 +149,13 @@ export function OrdersPage() {
                 turn: currentTurn,
                 items: [
                   ...pack.items,
-                  { id: newId('ord'), title: 'Новый приказ', body: '', secret: false },
+                  {
+                    id: newId('ord'),
+                    title: 'Новый приказ',
+                    body: '',
+                    secret: false,
+                    effects: [],
+                  },
                 ],
               })
             }
