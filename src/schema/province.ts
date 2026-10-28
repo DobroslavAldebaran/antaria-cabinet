@@ -136,6 +136,8 @@ export const OrderItemSchema = z.object({
   expectation: z.string().optional(),
   /** Additive: old orders without effects still parse. */
   effects: z.array(EffectSchema).default([]),
+  /** Draft metrics introduced by this order; merge into indicators on verdict commit. */
+  createdMetrics: z.array(MetricSchema).default([]),
 })
 export type OrderItem = z.infer<typeof OrderItemSchema>
 
@@ -176,6 +178,8 @@ export const CabinetEventSchema = z.object({
   turn: z.number().int().optional(),
   at: z.string(),
   effects: z.array(EffectSchema).default([]),
+  /** Metrics introduced by this event; merge into indicators on first save. */
+  createdMetrics: z.array(MetricSchema).default([]),
 })
 export type CabinetEvent = z.infer<typeof CabinetEventSchema>
 

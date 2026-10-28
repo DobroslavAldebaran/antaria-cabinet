@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   LEDGER_KIND_LABELS,
   formatLedgerAmount,
+  isBirthLedgerEntry,
   metricLabel,
   sortLedgerEntries,
 } from '../schema/metrics'
@@ -72,8 +73,11 @@ export function MetricHistoryDialog({
                   </span>
                   <strong className="metric-history-title">{row.title}</strong>
                   <span className="metric-history-amounts">
-                    {row.kind === 'start' ? (
-                      <>Старт: {formatLedgerAmount(row.balanceAfter ?? row.delta, false)}</>
+                    {isBirthLedgerEntry(row) ? (
+                      <>
+                        {row.kind === 'start' ? 'Старт' : 'Появился'}:{' '}
+                        {formatLedgerAmount(row.balanceAfter ?? row.delta, false)}
+                      </>
                     ) : (
                       <>
                         {formatLedgerAmount(row.delta, true)}

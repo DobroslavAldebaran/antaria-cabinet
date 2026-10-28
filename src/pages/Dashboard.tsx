@@ -11,6 +11,7 @@ import {
   normalizeIndicators,
   normalizeMetrics,
   parseMetricNumber,
+  pendingCreatedMetrics,
   sumPendingByMetric,
 } from '../schema/metrics'
 import { newId, nowIso, type Metric } from '../schema/province'
@@ -20,11 +21,13 @@ function MetricCell({
   metric,
   id,
   pending,
+  claimed,
   onOpen,
 }: {
   metric: Metric | undefined
   id: string
   pending: number
+  claimed?: boolean
   onOpen: (id: string) => void
 }) {
   const label = metric?.label || metricLabel(metric ? [metric] : [], id)
@@ -40,12 +43,14 @@ function MetricCell({
     ? `${display.base} (${display.pendingText})`
     : display.base
   const unit = metric && !display.pendingText ? metricDisplayUnit(metric) : ''
-  const aria = `${label}, значение: ${valueText}${unit ? ` ${unit}` : ''}. Открыть историю`
+  const aria = `${label}, значение: ${valueText}${unit ? ` ${unit}` : ''}${
+    claimed ? ', заявлен в приказах' : ''
+  }. Открыть историю`
 
   return (
     <button
       type="button"
-      className="kpi-cell"
+      className={claimed ? 'kpi-cell is-claimed' : 'kpi-cell'}
       aria-label={aria}
       id={`kpi-${id}`}
       onClick={() => onOpen(id)}
@@ -57,7 +62,11 @@ function MetricCell({
       </span>
       <span className="kpi-foot">
         <span className="kpi-caption muted">
-          {display.pendingText ? 'с заявленным' : 'баланс'}
+          {claimed
+            ? 'заявлено'
+            : display.pendingText
+              ? 'с заявленным'
+              : 'баланс'}
         </span>
         {metric?.note ? <span className="kpi-note muted">{metric.note}</span> : null}
       </span>
@@ -89,8 +98,15 @@ export function Dashboard() {
   }
 
   const metrics = normalizeMetrics(data.indicators.metrics)
+  const claimedMetrics = pendingCreatedMetrics(
+    data.orders,
+    data.verdicts,
+    metrics,
+  )
+  const displayMetrics = [...metrics, ...claimedMetrics]
   const ledger = data.indicators.ledger ?? []
   const pendingMap = sumPendingByMetric(data.orders, data.verdicts)
+  const claimedIds = new Set(claimedMetrics.map((m) => m.id))
   const orderCount = data.orders.reduce((n, t) => n + t.items.length, 0)
 
   const changeMetrics = (nextMetrics: Metric[]) => {
@@ -160,14 +176,15 @@ export function Dashboard() {
           </div>
         </header>
 
-        {metrics.length > 0 ? (
+        {displayMetrics.length > 0 ? (
           <section className="dash-kpi-grid" aria-label="Показатели">
-            {metrics.map((metric) => (
+            {displayMetrics.map((metric) => (
               <MetricCell
                 key={metric.id}
                 metric={metric}
                 id={metric.id}
                 pending={pendingMap.get(metric.id) ?? 0}
+                claimed={claimedIds.has(metric.id)}
                 onOpen={setHistoryId}
               />
             ))}
@@ -191,7 +208,7 @@ export function Dashboard() {
 
       <MetricHistoryDialog
         metricId={historyId}
-        metrics={metrics}
+        metrics={displayMetrics}
         entries={ledger}
         open={historyId != null}
         onClose={() => setHistoryId(null)}

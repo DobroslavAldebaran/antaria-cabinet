@@ -1,23 +1,52 @@
-import { metricLabel } from '../schema/metrics'
+import { useState } from 'react'
+import { metricLabel, parseMetricNumber } from '../schema/metrics'
 import { newId, type Effect, type Metric } from '../schema/province'
+import { MetricEditDialog } from './MetricEditDialog'
 import { MetricPicker } from './MetricPicker'
 
 export function EffectsEditor({
   effects,
   metrics,
   onChange,
+  onCreateMetric,
   disabled,
 }: {
   effects: Effect[]
   metrics: Metric[]
   onChange: (next: Effect[]) => void
+  onCreateMetric?: (metric: Metric) => void
   disabled?: boolean
 }) {
+  const [createOpen, setCreateOpen] = useState(false)
+
   const update = (idx: number, patch: Partial<Effect>) => {
     const next = [...effects]
     next[idx] = { ...next[idx], ...patch }
     onChange(next)
   }
+
+  const handleCreate = (raw: Metric) => {
+    if (!onCreateMetric) return
+    const value =
+      parseMetricNumber(raw.value) != null ? raw.value : (raw.value === '' ? 0 : raw.value)
+    const metric: Metric = {
+      ...raw,
+      id: newId('metric'),
+      value,
+    }
+    onCreateMetric(metric)
+    onChange([
+      ...effects,
+      {
+        id: newId('fx'),
+        metricId: metric.id,
+        delta: 0,
+      },
+    ])
+    setCreateOpen(false)
+  }
+
+  const canAdd = !disabled && (metrics.length > 0 || Boolean(onCreateMetric))
 
   return (
     <div className="effects-editor stack">
@@ -31,6 +60,25 @@ export function EffectsEditor({
             metrics={metrics}
             value={effect.metricId}
             disabled={disabled}
+            onCreateMetric={
+              onCreateMetric
+                ? (raw) => {
+                    const value =
+                      parseMetricNumber(raw.value) != null
+                        ? raw.value
+                        : raw.value === ''
+                          ? 0
+                          : raw.value
+                    const metric: Metric = {
+                      ...raw,
+                      id: newId('metric'),
+                      value,
+                    }
+                    onCreateMetric(metric)
+                    update(idx, { metricId: metric.id })
+                  }
+                : undefined
+            }
             onChange={(metricId) => update(idx, { metricId })}
           />
           <input
@@ -62,23 +110,49 @@ export function EffectsEditor({
           </button>
         </div>
       ))}
-      <button
-        type="button"
-        className="btn"
-        disabled={disabled || metrics.length === 0}
-        onClick={() =>
-          onChange([
-            ...effects,
-            {
-              id: newId('fx'),
-              metricId: metrics[0]?.id ?? '',
-              delta: 0,
-            },
-          ])
-        }
-      >
-        Добавить изменение
-      </button>
+      <div className="btn-row">
+        <button
+          type="button"
+          className="btn"
+          disabled={!canAdd}
+          onClick={() => {
+            if (metrics.length === 0 && onCreateMetric) {
+              setCreateOpen(true)
+              return
+            }
+            onChange([
+              ...effects,
+              {
+                id: newId('fx'),
+                metricId: metrics[0]?.id ?? '',
+                delta: 0,
+              },
+            ])
+          }}
+        >
+          Добавить изменение
+        </button>
+        {onCreateMetric ? (
+          <button
+            type="button"
+            className="btn btn-ghost"
+            disabled={disabled}
+            onClick={() => setCreateOpen(true)}
+          >
+            Новый показатель…
+          </button>
+        ) : null}
+      </div>
+
+      {onCreateMetric ? (
+        <MetricEditDialog
+          open={createOpen}
+          mode="create"
+          initial={null}
+          onClose={() => setCreateOpen(false)}
+          onSave={handleCreate}
+        />
+      ) : null}
     </div>
   )
 }

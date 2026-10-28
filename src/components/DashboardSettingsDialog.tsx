@@ -29,6 +29,7 @@ export function DashboardSettingsDialog({
   const [editOpen, setEditOpen] = useState(false)
   const [editMode, setEditMode] = useState<'create' | 'edit'>('edit')
   const [editTarget, setEditTarget] = useState<Metric | null>(null)
+  const [dragId, setDragId] = useState<string | null>(null)
 
   useEffect(() => {
     const el = dialogRef.current
@@ -44,6 +45,7 @@ export function DashboardSettingsDialog({
     if (!open) {
       setEditOpen(false)
       setEditTarget(null)
+      setDragId(null)
     }
   }, [open])
 
@@ -82,6 +84,28 @@ export function DashboardSettingsDialog({
     closeEdit()
   }
 
+  const moveMetric = (fromId: string, toId: string) => {
+    if (fromId === toId) return
+    const from = metrics.findIndex((m) => m.id === fromId)
+    const to = metrics.findIndex((m) => m.id === toId)
+    if (from < 0 || to < 0) return
+    const next = [...metrics]
+    const [item] = next.splice(from, 1)
+    next.splice(to, 0, item)
+    onChangeMetrics(next)
+  }
+
+  const shiftMetric = (id: string, dir: -1 | 1) => {
+    const idx = metrics.findIndex((m) => m.id === id)
+    if (idx < 0) return
+    const to = idx + dir
+    if (to < 0 || to >= metrics.length) return
+    const next = [...metrics]
+    const [item] = next.splice(idx, 1)
+    next.splice(to, 0, item)
+    onChangeMetrics(next)
+  }
+
   return (
     <>
       <dialog
@@ -102,16 +126,49 @@ export function DashboardSettingsDialog({
           </header>
 
           <p className="muted">
-            Нажмите показатель, чтобы изменить название или удалить. Можно добавить новый.
+            Перетащите строки или стрелки, чтобы изменить порядок на дашборде. Нажмите
+            показатель, чтобы изменить название или удалить.
           </p>
 
           <ul className="dash-settings-list">
-            {metrics.map((metric) => {
+            {metrics.map((metric, idx) => {
               const label = metricLabel(metrics, metric.id)
               const valueText = formatMetricValue(metric)
               const unit = metricDisplayUnit(metric)
               return (
-                <li key={metric.id}>
+                <li
+                  key={metric.id}
+                  className={
+                    dragId === metric.id
+                      ? 'dash-settings-row is-dragging'
+                      : 'dash-settings-row'
+                  }
+                  draggable
+                  onDragStart={(e) => {
+                    setDragId(metric.id)
+                    e.dataTransfer.effectAllowed = 'move'
+                    e.dataTransfer.setData('text/plain', metric.id)
+                  }}
+                  onDragEnd={() => setDragId(null)}
+                  onDragOver={(e) => {
+                    e.preventDefault()
+                    e.dataTransfer.dropEffect = 'move'
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    const fromId =
+                      e.dataTransfer.getData('text/plain') || dragId || ''
+                    moveMetric(fromId, metric.id)
+                    setDragId(null)
+                  }}
+                >
+                  <span
+                    className="dash-settings-handle"
+                    title="Перетащить"
+                    aria-hidden
+                  >
+                    ⋮⋮
+                  </span>
                   <button
                     type="button"
                     className="dash-settings-item"
@@ -124,6 +181,26 @@ export function DashboardSettingsDialog({
                     </span>
                     <span className="muted dash-settings-item-hint">Изменить</span>
                   </button>
+                  <div className="dash-settings-move">
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      aria-label={`Выше: ${label}`}
+                      disabled={idx === 0}
+                      onClick={() => shiftMetric(metric.id, -1)}
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      aria-label={`Ниже: ${label}`}
+                      disabled={idx === metrics.length - 1}
+                      onClick={() => shiftMetric(metric.id, 1)}
+                    >
+                      ↓
+                    </button>
+                  </div>
                 </li>
               )
             })}

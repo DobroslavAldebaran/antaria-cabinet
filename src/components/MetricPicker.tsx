@@ -1,22 +1,27 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { metricLabel } from '../schema/metrics'
 import type { Metric } from '../schema/province'
+import { MetricEditDialog } from './MetricEditDialog'
 
 export function MetricPicker({
   metrics,
   value,
   onChange,
+  onCreateMetric,
   disabled,
 }: {
   metrics: Metric[]
   value: string
   onChange: (metricId: string) => void
+  onCreateMetric?: (metric: Metric) => void
   disabled?: boolean
 }) {
   const listId = useId()
   const rootRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
+  const [createOpen, setCreateOpen] = useState(false)
   const label = value ? metricLabel(metrics, value) : 'Выберите показатель'
+  const canOpen = !disabled && (metrics.length > 0 || Boolean(onCreateMetric))
 
   useEffect(() => {
     if (!open) return
@@ -32,7 +37,7 @@ export function MetricPicker({
       <button
         type="button"
         className="btn metric-picker-trigger"
-        disabled={disabled || metrics.length === 0}
+        disabled={!canOpen}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={listId}
@@ -78,7 +83,34 @@ export function MetricPicker({
               </li>
             )
           })}
+          {onCreateMetric ? (
+            <li role="presentation">
+              <button
+                type="button"
+                className="metric-picker-option metric-picker-create"
+                onClick={() => {
+                  setOpen(false)
+                  setCreateOpen(true)
+                }}
+              >
+                Новый показатель…
+              </button>
+            </li>
+          ) : null}
         </ul>
+      ) : null}
+
+      {onCreateMetric ? (
+        <MetricEditDialog
+          open={createOpen}
+          mode="create"
+          initial={null}
+          onClose={() => setCreateOpen(false)}
+          onSave={(metric) => {
+            onCreateMetric(metric)
+            setCreateOpen(false)
+          }}
+        />
       ) : null}
     </div>
   )

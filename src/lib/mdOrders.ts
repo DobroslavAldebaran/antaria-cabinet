@@ -54,6 +54,7 @@ export function parseOrdersMarkdown(md: string): OrderItem[] {
       secret,
       expectation: expectation ?? undefined,
       effects: [],
+      createdMetrics: [],
     })
   }
 

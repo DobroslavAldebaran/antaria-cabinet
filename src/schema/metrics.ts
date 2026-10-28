@@ -97,6 +97,88 @@ export function sumPendingByMetric(
   return pending
 }
 
+/** Metrics drafted on uncommitted orders and not yet in indicators. */
+export function pendingCreatedMetrics(
+  orders: OrdersTurn[],
+  verdicts: VerdictTurn[],
+  existing: Metric[],
+): Metric[] {
+  const committed = committedOrderIds(verdicts)
+  const known = new Set(existing.map((m) => m.id))
+  const out: Metric[] = []
+  for (const turn of orders) {
+    for (const item of turn.items) {
+      if (committed.has(item.id)) continue
+      for (const metric of item.createdMetrics ?? []) {
+        if (!metric?.id || known.has(metric.id)) continue
+        known.add(metric.id)
+        out.push(metric)
+      }
+    }
+  }
+  return normalizeMetrics(out)
+}
+
+export type MergeCreatedMeta = {
+  kind: 'order' | 'event'
+  title?: string
+  turn?: number
+  orderId?: string
+  orderTurn?: number
+  eventId?: string
+  at?: string
+}
+
+/** Append unknown metrics and write birth ledger rows (idempotent by metric id). */
+export function mergeCreatedMetrics(
+  indicators: Indicators,
+  created: Metric[],
+  meta: MergeCreatedMeta,
+): Indicators {
+  if (!created.length) return indicators
+  const metrics = [...indicators.metrics]
+  const known = new Set(metrics.map((m) => m.id))
+  const ledger = [...(indicators.ledger ?? [])]
+  const at = meta.at ?? nowIso()
+  let changed = false
+
+  for (const raw of created) {
+    if (!raw?.id || known.has(raw.id)) continue
+    const metric = normalizeMetrics([raw])[0]
+    if (!metric) continue
+    known.add(metric.id)
+    metrics.push(metric)
+    changed = true
+    ledger.push({
+      id: newId('led'),
+      metricId: metric.id,
+      kind: meta.kind,
+      turn: meta.turn,
+      balanceAfter: metric.value,
+      title: meta.title ?? 'Появился показатель',
+      orderId: meta.orderId,
+      orderTurn: meta.orderTurn,
+      eventId: meta.eventId,
+      at,
+    })
+  }
+
+  if (!changed) return indicators
+  return {
+    ...indicators,
+    metrics,
+    ledger,
+    updatedAt: at,
+  }
+}
+
+/** True when a ledger row records metric birth rather than a numeric delta. */
+export function isBirthLedgerEntry(row: MetricLedgerEntry): boolean {
+  if (row.kind === 'start') return true
+  if (row.delta !== undefined && row.delta !== '') return false
+  return row.balanceAfter !== undefined && row.balanceAfter !== ''
+}
+
 export type ApplyEffectMeta = {
   kind: Exclude<MetricLedgerKind, 'start'>
   title: string

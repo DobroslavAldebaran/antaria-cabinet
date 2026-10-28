@@ -171,6 +171,80 @@ export async function writeJsonFile(
   return file.id
 }
 
+const MEDIA_MAX_BYTES = 5 * 1024 * 1024
+
+export async function ensureMediaFolder(
+  accessToken: string,
+  cabinetFolderId: string,
+): Promise<DriveFile> {
+  const existing = await findChild(accessToken, cabinetFolderId, 'media')
+  if (existing) return existing
+  return createSubfolder(accessToken, cabinetFolderId, 'media')
+}
+
+export async function setAnyoneReader(
+  accessToken: string,
+  fileId: string,
+): Promise<void> {
+  await driveFetch(accessToken, `${DRIVE_FILES}/${fileId}/permissions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      role: 'reader',
+      type: 'anyone',
+    }),
+  })
+}
+
+/** Hotlinkable URL for TipTap img src after anyone-reader permission. */
+export function mediaPublicUrl(fileId: string): string {
+  return `https://drive.google.com/uc?export=view&id=${fileId}`
+}
+
+export async function uploadMediaFile(
+  accessToken: string,
+  mediaFolderId: string,
+  blob: Blob,
+  name: string,
+  mime: string,
+): Promise<{ id: string; url: string }> {
+  if (!mime.startsWith('image/')) {
+    throw new Error('Можно загружать только изображения')
+  }
+  if (blob.size > MEDIA_MAX_BYTES) {
+    throw new Error('Файл больше 5 МБ')
+  }
+
+  const safeName = name.replace(/[^\w.\-]+/g, '_').slice(0, 120) || 'image'
+  const metadata = {
+    name: safeName,
+    parents: [mediaFolderId],
+    mimeType: mime,
+  }
+  const boundary = 'antaria_media_boundary'
+  const metaPart =
+    `--${boundary}\r\n` +
+    `Content-Type: application/json; charset=UTF-8\r\n\r\n` +
+    `${JSON.stringify(metadata)}\r\n`
+  const binHeader =
+    `--${boundary}\r\n` + `Content-Type: ${mime}\r\n\r\n`
+  const footer = `\r\n--${boundary}--`
+  const body = new Blob([metaPart, binHeader, blob, footer])
+
+  const res = await driveFetch(
+    accessToken,
+    `${DRIVE_UPLOAD}?uploadType=multipart&fields=id,name`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
+      body,
+    },
+  )
+  const file = (await res.json()) as DriveFile
+  await setAnyoneReader(accessToken, file.id)
+  return { id: file.id, url: mediaPublicUrl(file.id) }
+}
+
 async function upsertJson<T>(
   accessToken: string,
   folderId: string,
