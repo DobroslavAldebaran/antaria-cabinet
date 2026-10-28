@@ -3,6 +3,13 @@ import { metricLabel } from '../schema/metrics'
 import type { Metric } from '../schema/province'
 import { MetricEditDialog } from './MetricEditDialog'
 
+function metricOptionText(metric: Metric, metrics: Metric[]): string {
+  const label = metric.label?.trim() || metricLabel(metrics, metric.id)
+  const raw = metric.value
+  if (raw === '' || raw == null) return label
+  return `${label} · ${raw}`
+}
+
 export function MetricPicker({
   metrics,
   value,
@@ -20,7 +27,12 @@ export function MetricPicker({
   const rootRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
-  const label = value ? metricLabel(metrics, value) : 'Выберите показатель'
+  const selected = metrics.find((m) => m.id === value)
+  const label = selected
+    ? selected.label?.trim() || metricLabel(metrics, value)
+    : value
+      ? metricLabel(metrics, value)
+      : 'Выберите показатель'
   const canOpen = !disabled && (metrics.length > 0 || Boolean(onCreateMetric))
 
   useEffect(() => {
@@ -61,15 +73,15 @@ export function MetricPicker({
           aria-label="Показатели"
         >
           {metrics.map((m) => {
-            const selected = m.id === value
+            const selectedOpt = m.id === value
             return (
               <li key={m.id} role="presentation">
                 <button
                   type="button"
                   role="option"
-                  aria-selected={selected}
+                  aria-selected={selectedOpt}
                   className={
-                    selected
+                    selectedOpt
                       ? 'metric-picker-option is-selected'
                       : 'metric-picker-option'
                   }
@@ -78,7 +90,7 @@ export function MetricPicker({
                     setOpen(false)
                   }}
                 >
-                  {metricLabel(metrics, m.id)}
+                  {metricOptionText(m, metrics)}
                 </button>
               </li>
             )

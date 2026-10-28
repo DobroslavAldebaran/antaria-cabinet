@@ -4,6 +4,32 @@ import { newId, type Effect, type Metric } from '../schema/province'
 import { MetricEditDialog } from './MetricEditDialog'
 import { MetricPicker } from './MetricPicker'
 
+export type CreateMetricAttach = { effectId: string } | 'new-row'
+
+function finalizeCreatedMetric(raw: Metric): Metric {
+  const value =
+    parseMetricNumber(raw.value) != null
+      ? raw.value
+      : raw.value === ''
+        ? 0
+        : raw.value
+  return {
+    ...raw,
+    id: newId('metric'),
+    value,
+  }
+}
+
+function deltaInputValue(
+  effect: Effect,
+  drafts: Record<string, string>,
+): string {
+  if (Object.prototype.hasOwnProperty.call(drafts, effect.id)) {
+    return drafts[effect.id] ?? ''
+  }
+  return Number.isFinite(effect.delta) ? String(effect.delta) : '0'
+}
+
 export function EffectsEditor({
   effects,
   metrics,
@@ -14,10 +40,12 @@ export function EffectsEditor({
   effects: Effect[]
   metrics: Metric[]
   onChange: (next: Effect[]) => void
-  onCreateMetric?: (metric: Metric) => void
+  /** Parent must write createdMetrics + effects in one update. */
+  onCreateMetric?: (metric: Metric, attach: CreateMetricAttach) => void
   disabled?: boolean
 }) {
   const [createOpen, setCreateOpen] = useState(false)
+  const [deltaDrafts, setDeltaDrafts] = useState<Record<string, string>>({})
 
   const update = (idx: number, patch: Partial<Effect>) => {
     const next = [...effects]
@@ -27,23 +55,21 @@ export function EffectsEditor({
 
   const handleCreate = (raw: Metric) => {
     if (!onCreateMetric) return
-    const value =
-      parseMetricNumber(raw.value) != null ? raw.value : (raw.value === '' ? 0 : raw.value)
-    const metric: Metric = {
-      ...raw,
-      id: newId('metric'),
-      value,
-    }
-    onCreateMetric(metric)
-    onChange([
-      ...effects,
-      {
-        id: newId('fx'),
-        metricId: metric.id,
-        delta: 0,
-      },
-    ])
+    onCreateMetric(finalizeCreatedMetric(raw), 'new-row')
     setCreateOpen(false)
+  }
+
+  const setDeltaDraft = (effectId: string, raw: string) => {
+    setDeltaDrafts((prev) => ({ ...prev, [effectId]: raw }))
+  }
+
+  const clearDeltaDraft = (effectId: string) => {
+    setDeltaDrafts((prev) => {
+      if (!Object.prototype.hasOwnProperty.call(prev, effectId)) return prev
+      const next = { ...prev }
+      delete next[effectId]
+      return next
+    })
   }
 
   const canAdd = !disabled && (metrics.length > 0 || Boolean(onCreateMetric))
@@ -63,31 +89,34 @@ export function EffectsEditor({
             onCreateMetric={
               onCreateMetric
                 ? (raw) => {
-                    const value =
-                      parseMetricNumber(raw.value) != null
-                        ? raw.value
-                        : raw.value === ''
-                          ? 0
-                          : raw.value
-                    const metric: Metric = {
-                      ...raw,
-                      id: newId('metric'),
-                      value,
-                    }
-                    onCreateMetric(metric)
-                    update(idx, { metricId: metric.id })
+                    onCreateMetric(finalizeCreatedMetric(raw), {
+                      effectId: effect.id,
+                    })
                   }
                 : undefined
             }
             onChange={(metricId) => update(idx, { metricId })}
           />
           <input
-            type="number"
+            type="text"
+            inputMode="decimal"
             className="effects-delta"
-            value={Number.isFinite(effect.delta) ? effect.delta : 0}
+            value={deltaInputValue(effect, deltaDrafts)}
             disabled={disabled}
             aria-label={`Дельта: ${metricLabel(metrics, effect.metricId)}`}
-            onChange={(e) => update(idx, { delta: Number(e.target.value) || 0 })}
+            onChange={(e) => {
+              const raw = e.target.value
+              setDeltaDraft(effect.id, raw)
+              const parsed = parseMetricNumber(raw)
+              if (parsed != null) update(idx, { delta: parsed })
+            }}
+            onBlur={() => {
+              const raw = deltaDrafts[effect.id]
+              if (raw === undefined) return
+              const parsed = parseMetricNumber(raw)
+              update(idx, { delta: parsed ?? 0 })
+              clearDeltaDraft(effect.id)
+            }}
           />
           <input
             type="text"
@@ -104,7 +133,10 @@ export function EffectsEditor({
             type="button"
             className="btn btn-ghost"
             disabled={disabled}
-            onClick={() => onChange(effects.filter((_, i) => i !== idx))}
+            onClick={() => {
+              clearDeltaDraft(effect.id)
+              onChange(effects.filter((_, i) => i !== idx))
+            }}
           >
             Убрать
           </button>

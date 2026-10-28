@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useCabinet } from '../cabinet/CabinetProvider'
 import { EffectsEditor } from '../components/EffectsEditor'
 import { MasterDetailList } from '../components/MasterDetailList'
 import { RichTextEditor } from '../components/RichTextEditor'
+import { useDraftAutosave } from '../hooks/useDraftAutosave'
 import {
   deleteVerdictTurn,
   saveIndicators,
@@ -26,12 +27,18 @@ import {
 } from '../schema/province'
 import { Onboarding } from './Onboarding'
 
+function stripUpdatedAt(pack: VerdictTurn): string {
+  return JSON.stringify({ ...pack, updatedAt: '' })
+}
+
 export function VerdictsPage() {
   const { binding, data, setData, ensureToken, busy } = useCabinet()
   const [searchParams] = useSearchParams()
   const [turn, setTurn] = useState(0)
   const [msg, setMsg] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  const [savedTurns, setSavedTurns] = useState<Set<number>>(() => new Set())
+  const seededFolder = useRef<string | null>(null)
 
   useEffect(() => {
     const q = searchParams.get('turn')
@@ -52,29 +59,83 @@ export function VerdictsPage() {
 
   const currentTurn = turn || data?.meta.currentTurn || turnList[0] || 1
 
-  if (!binding || !data) return <Onboarding />
+  useEffect(() => {
+    if (!binding || !data) return
+    if (seededFolder.current === binding.folderId) return
+    seededFolder.current = binding.folderId
+    setSavedTurns(new Set(data.verdicts.map((v) => v.turn)))
+  }, [binding, data])
 
-  const metrics = normalizeMetrics(data.indicators.metrics)
-  const ordersPack =
-    data.orders.find((o) => o.turn === currentTurn) ??
-    emptyOrdersTurn(currentTurn)
-  const pack: VerdictTurn =
-    data.verdicts.find((v) => v.turn === currentTurn) ??
-    emptyVerdictTurn(currentTurn)
-  const alreadyCommitted = committedOrderIds(data.verdicts)
-  const takenElsewhere = linkedOrderIds(data.verdicts, currentTurn)
-  const selectableOrders = ordersPack.items.filter(
-    (item) =>
-      !alreadyCommitted.has(item.id) && !takenElsewhere.has(item.id),
+  const pack = useMemo((): VerdictTurn => {
+    if (!data) return emptyVerdictTurn(currentTurn)
+    return (
+      data.verdicts.find((v) => v.turn === currentTurn) ??
+      emptyVerdictTurn(currentTurn)
+    )
+  }, [data, currentTurn])
+
+  const ordersPack = useMemo(() => {
+    if (!data) return emptyOrdersTurn(currentTurn)
+    return (
+      data.orders.find((o) => o.turn === currentTurn) ??
+      emptyOrdersTurn(currentTurn)
+    )
+  }, [data, currentTurn])
+
+  const metrics = useMemo(
+    () => normalizeMetrics(data?.indicators.metrics ?? []),
+    [data?.indicators.metrics],
   )
 
+  const alreadyCommitted = useMemo(
+    () => (data ? committedOrderIds(data.verdicts) : new Set<string>()),
+    [data],
+  )
+  const takenElsewhere = useMemo(
+    () => (data ? linkedOrderIds(data.verdicts, currentTurn) : new Set<string>()),
+    [data, currentTurn],
+  )
+
+  const canClearTurn = !savedTurns.has(currentTurn)
+
   const setPack = (next: VerdictTurn) => {
+    if (!data) return
     const others = data.verdicts.filter((v) => v.turn !== next.turn)
     setData({
       ...data,
       verdicts: [...others, next].sort((a, b) => b.turn - a.turn),
     })
   }
+
+  const markPersisted = (next: VerdictTurn) => {
+    setSavedTurns((prev) => new Set([...prev, next.turn]))
+  }
+
+  const { phase, markSaved, valueRef } = useDraftAutosave({
+    value: pack,
+    resetKey: `${binding?.folderId ?? ''}:${currentTurn}`,
+    enabled: Boolean(binding && data),
+    onSave: async (current) => {
+      if (!binding) return
+      setErr(null)
+      const token = await ensureToken()
+      const next = { ...current, turn: currentTurn, updatedAt: nowIso() }
+      await saveVerdictTurn(token, binding.folderId, next)
+      markPersisted(next)
+      if (stripUpdatedAt(valueRef.current) === stripUpdatedAt(current)) {
+        setPack(next)
+        markSaved(next, 'draft')
+      }
+      setMsg('Черновик сохранён')
+    },
+  })
+
+  if (!binding || !data) return <Onboarding />
+
+  const selectableOrders = ordersPack.items.filter(
+    (item) =>
+      !alreadyCommitted.has(item.id) && !takenElsewhere.has(item.id),
+  )
 
   const toggleOrder = (orderId: string) => {
     if (alreadyCommitted.has(orderId) || takenElsewhere.has(orderId)) return
@@ -103,11 +164,18 @@ export function VerdictsPage() {
 
   const saveDraft = async () => {
     setErr(null)
-    const token = await ensureToken()
-    const next = { ...pack, turn: currentTurn, updatedAt: nowIso() }
-    await saveVerdictTurn(token, binding.folderId, next)
-    setPack(next)
-    setMsg(`Черновик вердикта хода ${currentTurn} сохранён`)
+    setMsg(null)
+    try {
+      const token = await ensureToken()
+      const next = { ...pack, turn: currentTurn, updatedAt: nowIso() }
+      await saveVerdictTurn(token, binding.folderId, next)
+      setPack(next)
+      markPersisted(next)
+      markSaved(next, 'manual')
+      setMsg(`Черновик вердикта хода ${currentTurn} сохранён`)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Ошибка сохранения')
+    }
   }
 
   const commit = async () => {
@@ -176,18 +244,24 @@ export function VerdictsPage() {
       updatedAt: at,
     }
 
-    const token = await ensureToken()
-    await saveIndicators(token, binding.folderId, indicators)
-    await saveVerdictTurn(token, binding.folderId, next)
-    setData({
-      ...data,
-      indicators,
-      verdicts: [
-        ...data.verdicts.filter((v) => v.turn !== currentTurn),
-        next,
-      ].sort((a, b) => b.turn - a.turn),
-    })
-    setMsg(`Вердикт хода ${currentTurn} зафиксирован`)
+    try {
+      const token = await ensureToken()
+      await saveIndicators(token, binding.folderId, indicators)
+      await saveVerdictTurn(token, binding.folderId, next)
+      setData({
+        ...data,
+        indicators,
+        verdicts: [
+          ...data.verdicts.filter((v) => v.turn !== currentTurn),
+          next,
+        ].sort((a, b) => b.turn - a.turn),
+      })
+      markPersisted(next)
+      markSaved(next, 'manual')
+      setMsg(`Вердикт хода ${currentTurn} зафиксирован`)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Ошибка фиксации')
+    }
   }
 
   const createTurn = () => {
@@ -198,6 +272,13 @@ export function VerdictsPage() {
       setPack(emptyVerdictTurn(nextTurn))
     }
     setErr(null)
+  }
+
+  const clearCurrent = () => {
+    if (!canClearTurn) return
+    setPack(emptyVerdictTurn(currentTurn))
+    setErr(null)
+    setMsg(null)
   }
 
   const deleteCurrent = async () => {
@@ -221,6 +302,11 @@ export function VerdictsPage() {
       await deleteVerdictTurn(token, binding.folderId, currentTurn)
       const nextVerdicts = data.verdicts.filter((v) => v.turn !== currentTurn)
       setData({ ...data, verdicts: nextVerdicts })
+      setSavedTurns((prev) => {
+        const next = new Set(prev)
+        next.delete(currentTurn)
+        return next
+      })
       const nextTurn =
         nextVerdicts[0]?.turn ??
         data.orders[0]?.turn ??
@@ -235,6 +321,13 @@ export function VerdictsPage() {
 
   const turnItems = turnList.map((t) => ({ id: String(t) }))
   const canDeleteVerdict = !isVerdictLinked(pack)
+  const saveBusy = busy || phase === 'saving'
+  const draftLabel =
+    phase === 'saving'
+      ? 'Сохранение…'
+      : phase === 'saved'
+        ? 'Сохранено'
+        : 'Сохранить черновик'
 
   return (
     <div className="page page-wide">
@@ -311,10 +404,10 @@ export function VerdictsPage() {
               <button
                 type="button"
                 className="btn"
-                disabled={busy}
+                disabled={saveBusy}
                 onClick={() => void saveDraft()}
               >
-                Сохранить черновик
+                {draftLabel}
               </button>
               <button
                 type="button"
@@ -337,8 +430,29 @@ export function VerdictsPage() {
               >
                 Удалить вердикт
               </button>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                disabled={!canClearTurn}
+                title={
+                  canClearTurn
+                    ? 'Сбросить ещё не сохранённый вердикт'
+                    : 'Очистить можно только до первого сохранения'
+                }
+                onClick={clearCurrent}
+              >
+                Очистить
+              </button>
             </div>
-            {msg ? <p className="ok">{msg}</p> : null}
+            <div role="status" aria-live="polite">
+              {msg ? <p className="ok">{msg}</p> : null}
+              {phase === 'draft' && !msg ? (
+                <p className="ok">Черновик сохранён</p>
+              ) : null}
+              {phase === 'saving' && !msg ? (
+                <p className="muted">Сохранение…</p>
+              ) : null}
+            </div>
             {err ? <p className="error">{err}</p> : null}
 
             {pack.commits.length > 0 ? (
