@@ -20,7 +20,8 @@ export function Layout() {
                 ['/app/orders', 'Приказы'],
                 ['/app/verdicts', 'Вердикты'],
                 ['/app/events', 'События'],
-                ['/app/characters', 'Персонаж'],
+                ['/app/characters', 'Персонажи'],
+                ['/app/ministries', 'Министерства'],
                 ['/app/profile', 'Профиль'],
                 ['/app/io', 'Импорт/Экспорт'],
               ] as const

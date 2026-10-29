@@ -241,7 +241,9 @@ export function Dashboard() {
         {' · '}
         <Link to="/app/events">События</Link>
         {' · '}
-        <Link to="/app/characters">Персонаж</Link>
+        <Link to="/app/characters">Персонажи</Link>
+        {' · '}
+        <Link to="/app/ministries">Министерства</Link>
       </footer>
 
       <MetricHistoryDialog

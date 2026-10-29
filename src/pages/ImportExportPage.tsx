@@ -115,6 +115,7 @@ export function ImportExportPage() {
                 verdicts: snapshot.verdicts.length,
                 events: snapshot.events.items.length,
                 characters: snapshot.characters.items.length,
+                ministries: snapshot.ministries.items.length,
               },
               null,
               2,
@@ -222,6 +223,6 @@ function summarize(exp: AntariaExport) {
     events: exp.events.items.length,
     characters: exp.characters.items.length,
     board: exp.board.items.length,
-    ministries: exp.profile.ministries.length,
+    ministries: exp.ministries.items.length,
   }
 }

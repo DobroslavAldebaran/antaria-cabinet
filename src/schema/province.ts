@@ -21,19 +21,10 @@ export const AntariaMetaSchema = z.object({
 })
 export type AntariaMeta = z.infer<typeof AntariaMetaSchema>
 
-export const MinistrySchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  head: z.string().optional(),
-  role: z.string().optional(),
-  notes: z.string().optional(),
-})
-
 export const ProfileSchema = z.object({
   schemaVersion: z.literal(SCHEMA_VERSION),
   publicLore: z.string().default(''),
   privateLore: z.string().default(''),
-  ministries: z.array(MinistrySchema).default([]),
   updatedAt: z.string(),
 })
 export type Profile = z.infer<typeof ProfileSchema>
@@ -210,6 +201,23 @@ export const CharactersSchema = z.object({
 })
 export type CharactersDoc = z.infer<typeof CharactersSchema>
 
+export const MinistrySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().default(''),
+  managerCharacterId: z.string().optional(),
+  parentId: z.string().optional(),
+  at: z.string(),
+})
+export type Ministry = z.infer<typeof MinistrySchema>
+
+export const MinistriesSchema = z.object({
+  schemaVersion: z.literal(SCHEMA_VERSION),
+  items: z.array(MinistrySchema).default([]),
+  updatedAt: z.string(),
+})
+export type MinistriesDoc = z.infer<typeof MinistriesSchema>
+
 export function nowIso(): string {
   return new Date().toISOString()
 }
@@ -275,6 +283,13 @@ export function emptyEvents(): EventsDoc {
 
 export function emptyCharacters(): CharactersDoc {
   return CharactersSchema.parse({
+    schemaVersion: SCHEMA_VERSION,
+    updatedAt: nowIso(),
+  })
+}
+
+export function emptyMinistries(): MinistriesDoc {
+  return MinistriesSchema.parse({
     schemaVersion: SCHEMA_VERSION,
     updatedAt: nowIso(),
   })

@@ -6,6 +6,7 @@ import {
   EventsSchema,
   IndicatorsSchema,
   MilitarySchema,
+  MinistriesSchema,
   OrdersTurnSchema,
   ProfileSchema,
   SCHEMA_VERSION,
@@ -13,6 +14,7 @@ import {
   emptyCharacters,
   emptyEvents,
   emptyMilitary,
+  emptyMinistries,
 } from './province'
 
 export const EXPORT_FORMAT = 'antaria-export' as const
@@ -33,6 +35,8 @@ export const AntariaExportSchema = z.object({
   events: EventsSchema.default(() => emptyEvents()),
   /** Additive: old exports without characters still parse. */
   characters: CharactersSchema.default(() => emptyCharacters()),
+  /** Additive: old exports without ministries still parse. */
+  ministries: MinistriesSchema.default(() => emptyMinistries()),
   /** Additive: old exports without military still parse. */
   military: MilitarySchema.default(() => emptyMilitary()),
 })

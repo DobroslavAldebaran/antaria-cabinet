@@ -8,6 +8,7 @@ export function MasterDetailList({
   createLabel,
   emptyLabel,
   renderItemLabel,
+  getItemClassName,
   children,
 }: {
   items: { id: string }[]
@@ -17,6 +18,7 @@ export function MasterDetailList({
   createLabel: string
   emptyLabel?: string
   renderItemLabel: (id: string) => ReactNode
+  getItemClassName?: (id: string) => string | undefined
   children: ReactNode
 }) {
   return (
@@ -31,15 +33,19 @@ export function MasterDetailList({
           <ul className="master-detail-items">
             {items.map((item) => {
               const selected = item.id === selectedId
+              const extra = getItemClassName?.(item.id)
+              const className = [
+                'master-detail-item',
+                selected ? 'is-selected' : '',
+                extra ?? '',
+              ]
+                .filter(Boolean)
+                .join(' ')
               return (
                 <li key={item.id}>
                   <button
                     type="button"
-                    className={
-                      selected
-                        ? 'master-detail-item is-selected'
-                        : 'master-detail-item'
-                    }
+                    className={className}
                     aria-current={selected ? 'true' : undefined}
                     onClick={() => onSelect(item.id)}
                   >

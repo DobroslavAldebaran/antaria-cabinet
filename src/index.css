@@ -1201,6 +1201,132 @@ button {
   color: var(--accent-2);
 }
 
+.master-detail-item.is-child {
+  padding-inline-start: calc(0.65rem + var(--nest, 0.85rem));
+}
+
+.master-detail-item.depth-1 {
+  --nest: 0.85rem;
+}
+
+.master-detail-item.depth-2 {
+  --nest: 1.7rem;
+}
+
+.master-detail-item.depth-3 {
+  --nest: 2.55rem;
+}
+
+.master-detail-item.depth-4 {
+  --nest: 3.4rem;
+}
+
+.master-detail-item.depth-5 {
+  --nest: 4.25rem;
+}
+
+.master-detail-item.depth-6 {
+  --nest: 5.1rem;
+}
+
+.entity-picker-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.45rem;
+  align-items: start;
+}
+
+.entity-picker-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.entity-picker-trigger-main {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.entity-picker-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entity-picker-avatar {
+  width: 1.65rem;
+  height: 1.65rem;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.22);
+  flex: 0 0 auto;
+}
+
+.entity-picker-avatar.is-empty {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.entity-picker-dropdown {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.4rem;
+}
+
+.entity-picker-dropdown ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 12rem;
+  overflow: auto;
+}
+
+.entity-picker-search {
+  width: 100%;
+  min-height: 2.1rem;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--ink);
+}
+
+.entity-picker-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.entity-picker-empty {
+  padding: 0.45rem 0.55rem;
+  margin: 0;
+}
+
+.entity-picker-more {
+  min-width: 2.5rem;
+  letter-spacing: 0.08em;
+}
+
+.characters-dialog {
+  max-width: min(64rem, calc(100vw - 1.5rem));
+  width: 100%;
+}
+
+.characters-dialog-panel {
+  padding: 1rem 1.1rem 1.15rem;
+  display: grid;
+  gap: 0.75rem;
+  max-height: min(90vh, 52rem);
+  overflow: auto;
+}
+
+.characters-dialog-lead {
+  margin: 0;
+}
+
 @media (max-width: 720px) {
   .effects-row {
     grid-template-columns: 1fr;
@@ -1215,5 +1341,9 @@ button {
     border-bottom: 1px solid var(--line);
     padding-right: 0;
     padding-bottom: 0.85rem;
+  }
+
+  .entity-picker-row {
+    grid-template-columns: 1fr;
   }
 }

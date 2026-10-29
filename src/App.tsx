@@ -9,6 +9,7 @@ import { ImportExportPage } from './pages/ImportExportPage'
 import { Landing } from './pages/Landing'
 import { CharactersPage } from './pages/CharactersPage'
 import { EventsPage } from './pages/EventsPage'
+import { MinistriesPage } from './pages/MinistriesPage'
 import { OrdersPage } from './pages/OrdersPage'
 import { Pending } from './pages/Pending'
 import { ProfilePage } from './pages/ProfilePage'
@@ -41,6 +42,7 @@ export default function App() {
                   <Route path="verdicts" element={<VerdictsPage />} />
                   <Route path="events" element={<EventsPage />} />
                   <Route path="characters" element={<CharactersPage />} />
+                  <Route path="ministries" element={<MinistriesPage />} />
                   <Route path="relations" element={<Navigate to="/app" replace />} />
                   <Route path="profile" element={<ProfilePage />} />
                   <Route path="maps" element={<Navigate to="/app" replace />} />

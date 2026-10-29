@@ -8,10 +8,12 @@ import {
   emptyIndicators,
   emptyMeta,
   emptyMilitary,
+  emptyMinistries,
   emptyProfile,
   EventsSchema,
   IndicatorsSchema,
   MilitarySchema,
+  MinistriesSchema,
   nowIso,
   OrdersTurnSchema,
   ProfileSchema,
@@ -22,6 +24,7 @@ import {
   type EventsDoc,
   type Indicators,
   type Military,
+  type MinistriesDoc,
   type OrdersTurn,
   type Profile,
   type VerdictTurn,
@@ -285,6 +288,7 @@ export async function initCabinetFolder(
   await ensure('military.json', emptyMilitary())
   await ensure('events.json', emptyEvents())
   await ensure('characters.json', emptyCharacters())
+  await ensure('ministries.json', emptyMinistries())
   const orders = await findChild(accessToken, folderId, 'orders')
   if (!orders) {
     await createSubfolder(accessToken, folderId, 'orders')
@@ -305,6 +309,7 @@ export type CabinetData = {
   verdicts: VerdictTurn[]
   events: EventsDoc
   characters: CharactersDoc
+  ministries: MinistriesDoc
 }
 
 export async function loadCabinet(
@@ -397,6 +402,14 @@ export async function loadCabinet(
     emptyCharacters,
   )
 
+  const ministries = await readOrDefault(
+    accessToken,
+    folderId,
+    'ministries.json',
+    (r) => MinistriesSchema.parse(r),
+    emptyMinistries,
+  )
+
   return {
     meta,
     profile,
@@ -407,6 +420,7 @@ export async function loadCabinet(
     verdicts,
     events,
     characters,
+    ministries,
   }
 }
 
@@ -581,6 +595,17 @@ export async function saveCharacters(
   })
 }
 
+export async function saveMinistries(
+  accessToken: string,
+  folderId: string,
+  ministries: MinistriesDoc,
+): Promise<void> {
+  await upsertJson(accessToken, folderId, 'ministries.json', {
+    ...ministries,
+    updatedAt: nowIso(),
+  })
+}
+
 export function cabinetToExport(data: CabinetData): AntariaExport {
   return {
     format: EXPORT_FORMAT,
@@ -595,6 +620,7 @@ export function cabinetToExport(data: CabinetData): AntariaExport {
     verdicts: data.verdicts,
     events: data.events,
     characters: data.characters,
+    ministries: data.ministries,
     military: data.military,
   }
 }
@@ -612,6 +638,7 @@ export async function writeExportToDrive(
   await saveMilitary(accessToken, folderId, exp.military)
   await saveEvents(accessToken, folderId, exp.events)
   await saveCharacters(accessToken, folderId, exp.characters)
+  await saveMinistries(accessToken, folderId, exp.ministries)
   for (const turn of exp.orders) {
     await saveOrdersTurn(accessToken, folderId, turn)
   }

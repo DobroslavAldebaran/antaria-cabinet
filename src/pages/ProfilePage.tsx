@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useCabinet } from '../cabinet/CabinetProvider'
 import { saveMeta, saveProfile } from '../lib/drive'
-import { newId, nowIso } from '../schema/province'
+import { nowIso } from '../schema/province'
 import { Onboarding } from './Onboarding'
 
 export function ProfilePage() {
@@ -71,81 +71,7 @@ export function ProfilePage() {
             />
           </div>
         </div>
-      </div>
-
-      <div className="panel">
-        <h3>Министерства</h3>
-        {profile.ministries.map((m, idx) => (
-          <div key={m.id} className="list-block stack">
-            <div className="field">
-              <label>Название</label>
-              <input
-                value={m.name}
-                onChange={(e) => {
-                  const ministries = [...profile.ministries]
-                  ministries[idx] = { ...m, name: e.target.value }
-                  setData({ ...data, profile: { ...profile, ministries } })
-                }}
-              />
-            </div>
-            <div className="field">
-              <label>Глава</label>
-              <input
-                value={m.head ?? ''}
-                onChange={(e) => {
-                  const ministries = [...profile.ministries]
-                  ministries[idx] = { ...m, head: e.target.value }
-                  setData({ ...data, profile: { ...profile, ministries } })
-                }}
-              />
-            </div>
-            <div className="field">
-              <label>Роль / заметки</label>
-              <textarea
-                value={m.notes ?? m.role ?? ''}
-                onChange={(e) => {
-                  const ministries = [...profile.ministries]
-                  ministries[idx] = { ...m, notes: e.target.value }
-                  setData({ ...data, profile: { ...profile, ministries } })
-                }}
-              />
-            </div>
-            <button
-              type="button"
-              className="btn btn-ghost"
-              onClick={() =>
-                setData({
-                  ...data,
-                  profile: {
-                    ...profile,
-                    ministries: profile.ministries.filter((x) => x.id !== m.id),
-                  },
-                })
-              }
-            >
-              Удалить
-            </button>
-          </div>
-        ))}
-        <div className="btn-row">
-          <button
-            type="button"
-            className="btn"
-            onClick={() =>
-              setData({
-                ...data,
-                profile: {
-                  ...profile,
-                  ministries: [
-                    ...profile.ministries,
-                    { id: newId('min'), name: 'Новое министерство' },
-                  ],
-                },
-              })
-            }
-          >
-            Добавить министерство
-          </button>
+        <div className="btn-row" style={{ marginTop: '1rem' }}>
           <button
             type="button"
             className="btn btn-primary"
@@ -158,14 +84,14 @@ export function ProfilePage() {
                 await saveMeta(token, binding.folderId, nextMeta)
                 await saveProfile(token, binding.folderId, nextProfile)
                 setData({ ...data, meta: nextMeta, profile: nextProfile })
-                setMsg('Сохранено')
+                setMsg('Профиль сохранён')
               })()
             }
           >
             Сохранить
           </button>
         </div>
-        {msg && <p className="ok">{msg}</p>}
+        {msg ? <p className="ok">{msg}</p> : null}
       </div>
     </div>
   )
