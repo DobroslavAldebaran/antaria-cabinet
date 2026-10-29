@@ -196,9 +196,9 @@ export const CharacterSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string().default(''),
+  caption: z.string().default(''),
   avatarUrl: z.string().optional(),
   avatarFileId: z.string().optional(),
-  story: z.boolean().default(false),
   at: z.string(),
 })
 export type Character = z.infer<typeof CharacterSchema>

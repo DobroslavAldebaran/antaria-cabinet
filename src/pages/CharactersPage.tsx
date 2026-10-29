@@ -107,7 +107,7 @@ export function CharactersPage() {
       id: newId('chr'),
       name: 'Новый персонаж',
       description: '',
-      story: false,
+      caption: '',
       at: nowIso(),
     }
     setCharacters({ ...characters, items: [...characters.items, item] })
@@ -207,8 +207,8 @@ export function CharactersPage() {
       <div className="panel">
         <h2>Персонаж</h2>
         <p className="muted">
-          Карточки персонажей: имя, описание, аватар и флаг «Сюжетный». Черновик
-          пишется на Drive автоматически.
+          Карточки персонажей: имя, подпись, описание и аватар. Черновик пишется на
+          Drive автоматически.
         </p>
 
         <MasterDetailList
@@ -221,11 +221,12 @@ export function CharactersPage() {
           renderItemLabel={(id) => {
             const item = characters.items.find((x) => x.id === id)
             const name = item?.name?.trim() || 'Без имени'
+            const caption = item?.caption?.trim() ?? ''
             return (
               <span className="master-detail-text">
                 <span className="master-detail-label">{name}</span>
-                {item?.story ? (
-                  <span className="master-detail-caption muted">Сюжетный</span>
+                {caption ? (
+                  <span className="master-detail-caption muted">{caption}</span>
                 ) : null}
               </span>
             )
@@ -242,16 +243,16 @@ export function CharactersPage() {
                   }
                 />
               </div>
-              <label>
+              <div className="field">
+                <label>Подпись</label>
                 <input
-                  type="checkbox"
-                  checked={selected.story}
+                  value={selected.caption}
                   onChange={(e) =>
-                    updateItem(selectedIdx, { story: e.target.checked })
+                    updateItem(selectedIdx, { caption: e.target.value })
                   }
-                />{' '}
-                Сюжетный
-              </label>
+                  placeholder="Кратко под именем в списке"
+                />
+              </div>
               <div className="field">
                 <label>Аватар</label>
                 <div className="character-avatar-row">
