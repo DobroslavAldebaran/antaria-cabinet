@@ -132,6 +132,18 @@ export function Dashboard() {
   )
   const claimedIds = new Set(claimedMetrics.map((m) => m.id))
   const orderCount = data.orders.reduce((n, t) => n + t.items.length, 0)
+  const eventTitles = Object.fromEntries(
+    events
+      .filter((e) => e.id && e.title?.trim())
+      .map((e) => [e.id, e.title.trim()]),
+  )
+  const orderTitles = Object.fromEntries(
+    data.orders.flatMap((turn) =>
+      turn.items
+        .filter((item) => item.id && item.title?.trim())
+        .map((item) => [item.id, item.title.trim()]),
+    ),
+  )
 
   const changeMetrics = (nextMetrics: Metric[]) => {
     setSettingsMsg(null)
@@ -236,6 +248,8 @@ export function Dashboard() {
         entries={ledger}
         open={historyId != null}
         onClose={() => setHistoryId(null)}
+        eventTitles={eventTitles}
+        orderTitles={orderTitles}
       />
 
       <DashboardSettingsDialog

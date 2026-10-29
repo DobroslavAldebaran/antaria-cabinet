@@ -221,7 +221,7 @@ export function EventsPage() {
         // Idempotent by metric id — safe on re-save after event already hit ledger.
         indicators = mergeCreatedMetrics(indicators, created, {
           kind: 'event',
-          title: 'Появился показатель',
+          title: item.title?.trim() || 'Событие',
           turn: item.turn,
           eventId: item.id,
           at,

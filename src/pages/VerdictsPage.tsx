@@ -228,7 +228,7 @@ export function VerdictsPage() {
 
       indicators = mergeCreatedMetrics(indicators, created, {
         kind: 'order',
-        title: 'Появился показатель',
+        title: item.title?.trim() || 'Приказ',
         turn: currentTurn,
         orderId: item.id,
         orderTurn: currentTurn,
@@ -250,7 +250,7 @@ export function VerdictsPage() {
     if (verdictCreated.length) {
       indicators = mergeCreatedMetrics(indicators, verdictCreated, {
         kind: 'verdict',
-        title: 'Появился показатель',
+        title: `Вердикт хода ${currentTurn}`,
         turn: currentTurn,
         at,
       })
