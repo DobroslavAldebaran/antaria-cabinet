@@ -9,7 +9,6 @@ import { MasterDetailList } from '../components/MasterDetailList'
 import { RichTextEditor } from '../components/RichTextEditor'
 import { useDraftAutosave } from '../hooks/useDraftAutosave'
 import { saveAllOrdersTurns } from '../lib/drive'
-import { parseOrdersMarkdown } from '../lib/mdOrders'
 import { isOrderLinked, normalizeMetrics } from '../schema/metrics'
 import {
   SCHEMA_VERSION,
@@ -73,8 +72,6 @@ export function OrdersPage() {
   const [searchParams] = useSearchParams()
   const [msg, setMsg] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
-  const [md, setMd] = useState('')
-  const [mdOpen, setMdOpen] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [savedIds, setSavedIds] = useState<Set<string>>(() => new Set())
   const [persistedTurns, setPersistedTurns] = useState<number[]>([])
@@ -443,43 +440,6 @@ export function OrdersPage() {
           ) : null}
         </div>
         {err ? <p className="error">{err}</p> : null}
-      </div>
-
-      <div className="panel">
-        <button
-          type="button"
-          className="btn btn-ghost"
-          onClick={() => setMdOpen((v) => !v)}
-        >
-          {mdOpen ? 'Скрыть импорт Markdown' : 'Импорт из Markdown'}
-        </button>
-        {mdOpen ? (
-          <>
-            <p className="muted">Вставьте текст приказа (.md). Разбор best-effort.</p>
-            <div className="field">
-              <textarea
-                value={md}
-                onChange={(e) => setMd(e.target.value)}
-                rows={10}
-              />
-            </div>
-            <button
-              type="button"
-              className="btn"
-              onClick={() => {
-                const imported = parseOrdersMarkdown(md)
-                setRows([
-                  ...rows,
-                  ...imported.map((item) => ({ turn: defaultTurn, item })),
-                ])
-                if (imported[0]) setSelectedId(imported[0].id)
-                setMsg(`Импортировано пунктов: ${imported.length}`)
-              }}
-            >
-              Разобрать и добавить
-            </button>
-          </>
-        ) : null}
       </div>
     </div>
   )
