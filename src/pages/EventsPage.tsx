@@ -216,9 +216,9 @@ export function EventsPage() {
         const created = item.createdMetrics ?? []
         const effects = item.effects ?? []
         if (!created.length && !effects.length) continue
-        if (alreadyApplied.has(item.id)) continue
 
         const at = item.at || nowIso()
+        // Idempotent by metric id — safe on re-save after event already hit ledger.
         indicators = mergeCreatedMetrics(indicators, created, {
           kind: 'event',
           title: 'Появился показатель',
@@ -226,6 +226,9 @@ export function EventsPage() {
           eventId: item.id,
           at,
         })
+
+        if (alreadyApplied.has(item.id)) continue
+
         if (effects.length) {
           indicators = applyEffectsToIndicators(indicators, effects, {
             kind: 'event',

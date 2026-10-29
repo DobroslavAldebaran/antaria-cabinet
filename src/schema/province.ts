@@ -166,6 +166,8 @@ export const VerdictTurnSchema = z.object({
   orderIds: z.array(z.string()).default([]),
   /** Draft: verdict-own effects for the next commit. */
   effects: z.array(EffectSchema).default([]),
+  /** Draft metrics introduced by this verdict; merge into indicators on commit. */
+  createdMetrics: z.array(MetricSchema).default([]),
   commits: z.array(VerdictCommitSchema).default([]),
   updatedAt: z.string(),
 })

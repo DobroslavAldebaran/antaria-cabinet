@@ -6,6 +6,7 @@ import { MetricHistoryDialog } from '../components/MetricHistoryDialog'
 import { saveIndicators } from '../lib/drive'
 import {
   formatCommittedWithPending,
+  formatMetricValue,
   metricDisplayUnit,
   metricLabel,
   normalizeIndicators,
@@ -39,13 +40,18 @@ function MetricCell({
           base: metric ? String(metric.value ?? '-') : '-',
           pendingText: null as string | null,
         }
-  const valueText = display.pendingText
-    ? `${display.base} (${display.pendingText})`
+  const unit = metric ? metricDisplayUnit(metric) : ''
+  const planned =
+    metric && numeric != null && pending !== 0
+      ? formatMetricValue({ ...metric, value: numeric + pending })
+      : null
+  const caption = claimed ? 'заявлено' : pending !== 0 ? 'ожидается' : null
+  const valueAria = display.pendingText
+    ? `${display.base} ${display.pendingText}`
     : display.base
-  const unit = metric && !display.pendingText ? metricDisplayUnit(metric) : ''
-  const aria = `${label}, значение: ${valueText}${unit ? ` ${unit}` : ''}${
-    claimed ? ', заявлен в приказах' : ''
-  }. Открыть историю`
+  const aria = `${label}, значение: ${valueAria}${unit ? ` ${unit}` : ''}${
+    planned ? `, планируемый итог: ${planned}` : ''
+  }${caption ? `, ${caption}` : ''}. Открыть историю`
 
   return (
     <button
@@ -57,13 +63,24 @@ function MetricCell({
     >
       <span className="kpi-label">{label}</span>
       <span className="kpi-value">
-        {valueText}
+        {display.base}
         {unit ? <span className="kpi-unit"> {unit}</span> : null}
+        {display.pendingText ? (
+          <span
+            className={
+              pending > 0 ? 'kpi-delta is-pos' : 'kpi-delta is-neg'
+            }
+          >
+            {' '}
+            {display.pendingText}
+          </span>
+        ) : null}
       </span>
-      {claimed || metric?.note ? (
+      {planned || caption || metric?.note ? (
         <span className="kpi-foot">
-          {claimed ? (
-            <span className="kpi-caption muted">заявлено</span>
+          {planned ? <span className="kpi-planned">{planned}</span> : null}
+          {caption ? (
+            <span className="kpi-caption muted">{caption}</span>
           ) : null}
           {metric?.note ? (
             <span className="kpi-note muted">{metric.note}</span>
@@ -98,14 +115,21 @@ export function Dashboard() {
   }
 
   const metrics = normalizeMetrics(data.indicators.metrics)
+  const events = data.events?.items ?? []
   const claimedMetrics = pendingCreatedMetrics(
     data.orders,
     data.verdicts,
     metrics,
+    events,
   )
   const displayMetrics = [...metrics, ...claimedMetrics]
   const ledger = data.indicators.ledger ?? []
-  const pendingMap = sumPendingByMetric(data.orders, data.verdicts)
+  const pendingMap = sumPendingByMetric(
+    data.orders,
+    data.verdicts,
+    events,
+    ledger,
+  )
   const claimedIds = new Set(claimedMetrics.map((m) => m.id))
   const orderCount = data.orders.reduce((n, t) => n + t.items.length, 0)
 

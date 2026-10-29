@@ -1,6 +1,7 @@
 import {
   newId,
   nowIso,
+  type CabinetEvent,
   type Effect,
   type Indicators,
   type Metric,
@@ -142,51 +143,87 @@ export function revertEventFromIndicators(
   }
 }
 
-/** Sum of order effects not yet included in any verdict commit. */
+/** Sum of effects not yet committed: orders, verdict drafts, unapplied events. */
 export function sumPendingByMetric(
   orders: OrdersTurn[],
   verdicts: VerdictTurn[],
+  events: CabinetEvent[] = [],
+  ledger: MetricLedgerEntry[] = [],
 ): Map<string, number> {
   const committed = committedOrderIds(verdicts)
   const pending = new Map<string, number>()
+  const add = (metricId: string, delta: number) => {
+    pending.set(metricId, (pending.get(metricId) ?? 0) + delta)
+  }
+
   for (const turn of orders) {
     for (const item of turn.items) {
       if (committed.has(item.id)) continue
       for (const effect of item.effects ?? []) {
-        pending.set(
-          effect.metricId,
-          (pending.get(effect.metricId) ?? 0) + effect.delta,
-        )
+        add(effect.metricId, effect.delta)
       }
     }
   }
+
+  for (const turn of verdicts) {
+    for (const effect of turn.effects ?? []) {
+      add(effect.metricId, effect.delta)
+    }
+  }
+
+  const appliedEvents = new Set(
+    ledger
+      .map((row) => row.eventId)
+      .filter((id): id is string => Boolean(id)),
+  )
+  for (const item of events) {
+    if (appliedEvents.has(item.id)) continue
+    for (const effect of item.effects ?? []) {
+      add(effect.metricId, effect.delta)
+    }
+  }
+
   return pending
 }
 
-/** Metrics drafted on uncommitted orders and not yet in indicators. */
+/** Metrics drafted on orders/events/verdicts and not yet in indicators. */
 export function pendingCreatedMetrics(
   orders: OrdersTurn[],
   verdicts: VerdictTurn[],
   existing: Metric[],
+  events: CabinetEvent[] = [],
 ): Metric[] {
   const committed = committedOrderIds(verdicts)
   const known = new Set(existing.map((m) => m.id))
   const out: Metric[] = []
+  const take = (list: Metric[] | undefined) => {
+    for (const metric of list ?? []) {
+      if (!metric?.id || known.has(metric.id)) continue
+      known.add(metric.id)
+      out.push(metric)
+    }
+  }
+
   for (const turn of orders) {
     for (const item of turn.items) {
       if (committed.has(item.id)) continue
-      for (const metric of item.createdMetrics ?? []) {
-        if (!metric?.id || known.has(metric.id)) continue
-        known.add(metric.id)
-        out.push(metric)
-      }
+      take(item.createdMetrics)
     }
   }
+
+  for (const turn of verdicts) {
+    take(turn.createdMetrics)
+  }
+
+  for (const item of events) {
+    take(item.createdMetrics)
+  }
+
   return normalizeMetrics(out)
 }
 
 export type MergeCreatedMeta = {
-  kind: 'order' | 'event'
+  kind: 'order' | 'event' | 'verdict'
   title?: string
   turn?: number
   orderId?: string

@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useCabinet } from '../cabinet/CabinetProvider'
-import { EffectsEditor } from '../components/EffectsEditor'
+import {
+  EffectsEditor,
+  type CreateMetricAttach,
+} from '../components/EffectsEditor'
 import { MasterDetailList } from '../components/MasterDetailList'
 import { RichTextEditor } from '../components/RichTextEditor'
 import { useDraftAutosave } from '../hooks/useDraftAutosave'
@@ -23,6 +26,7 @@ import {
   emptyVerdictTurn,
   newId,
   nowIso,
+  type Metric,
   type VerdictTurn,
 } from '../schema/province'
 import { Onboarding } from './Onboarding'
@@ -86,6 +90,13 @@ export function VerdictsPage() {
     () => normalizeMetrics(data?.indicators.metrics ?? []),
     [data?.indicators.metrics],
   )
+
+  const editorMetrics = useMemo(() => {
+    return normalizeMetrics([
+      ...metrics,
+      ...(pack.createdMetrics ?? []),
+    ])
+  }, [metrics, pack.createdMetrics])
 
   const alreadyCommitted = useMemo(
     () => (data ? committedOrderIds(data.verdicts) : new Set<string>()),
@@ -156,11 +167,29 @@ export function VerdictsPage() {
       (id) => !alreadyCommitted.has(id) && !takenElsewhere.has(id),
     ) &&
     (pack.effects.length > 0 ||
+      (pack.createdMetrics ?? []).length > 0 ||
       selectedOrders.some(
         (item) =>
           (item.effects ?? []).length > 0 ||
           (item.createdMetrics ?? []).length > 0,
       ))
+
+  const addCreatedMetric = (metric: Metric, attach: CreateMetricAttach) => {
+    const createdMetrics = [...(pack.createdMetrics ?? []), metric]
+    let effects = [...(pack.effects ?? [])]
+    if (attach === 'new-row') {
+      effects.push({
+        id: newId('fx'),
+        metricId: metric.id,
+        delta: 0,
+      })
+    } else {
+      effects = effects.map((e) =>
+        e.id === attach.effectId ? { ...e, metricId: metric.id } : e,
+      )
+    }
+    setPack({ ...pack, createdMetrics, effects })
+  }
 
   const saveDraft = async () => {
     setErr(null)
@@ -217,6 +246,16 @@ export function VerdictsPage() {
       }
     }
 
+    const verdictCreated = pack.createdMetrics ?? []
+    if (verdictCreated.length) {
+      indicators = mergeCreatedMetrics(indicators, verdictCreated, {
+        kind: 'verdict',
+        title: 'Появился показатель',
+        turn: currentTurn,
+        at,
+      })
+    }
+
     if (pack.effects.length > 0) {
       indicators = applyEffectsToIndicators(indicators, pack.effects, {
         kind: 'verdict',
@@ -231,6 +270,7 @@ export function VerdictsPage() {
       ...pack,
       turn: currentTurn,
       effects: [],
+      createdMetrics: [],
       orderIds: [],
       commits: [
         ...pack.commits,
@@ -292,6 +332,7 @@ export function VerdictsPage() {
       Boolean(pack.body?.trim()) ||
       pack.orderIds.length > 0 ||
       pack.effects.length > 0 ||
+      (pack.createdMetrics ?? []).length > 0 ||
       data.verdicts.some((v) => v.turn === currentTurn)
     if (!hasDraft && !data.verdicts.some((v) => v.turn === currentTurn)) {
       setErr('Нечего удалять')
@@ -396,8 +437,9 @@ export function VerdictsPage() {
 
             <EffectsEditor
               effects={pack.effects}
-              metrics={metrics}
+              metrics={editorMetrics}
               onChange={(effects) => setPack({ ...pack, effects })}
+              onCreateMetric={addCreatedMetric}
             />
 
             <div className="btn-row">
