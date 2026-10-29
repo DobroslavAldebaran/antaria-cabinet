@@ -240,6 +240,8 @@ export function Dashboard() {
         <Link to="/app/verdicts">Вердикты</Link>
         {' · '}
         <Link to="/app/events">События</Link>
+        {' · '}
+        <Link to="/app/characters">Персонаж</Link>
       </footer>
 
       <MetricHistoryDialog

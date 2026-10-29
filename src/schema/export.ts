@@ -2,6 +2,7 @@ import { z } from 'zod'
 import {
   AntariaMetaSchema,
   BoardSchema,
+  CharactersSchema,
   EventsSchema,
   IndicatorsSchema,
   MilitarySchema,
@@ -9,6 +10,7 @@ import {
   ProfileSchema,
   SCHEMA_VERSION,
   VerdictTurnSchema,
+  emptyCharacters,
   emptyEvents,
   emptyMilitary,
 } from './province'
@@ -29,6 +31,8 @@ export const AntariaExportSchema = z.object({
   /** Additive: old exports without verdicts/events still parse. */
   verdicts: z.array(VerdictTurnSchema).default([]),
   events: EventsSchema.default(() => emptyEvents()),
+  /** Additive: old exports without characters still parse. */
+  characters: CharactersSchema.default(() => emptyCharacters()),
   /** Additive: old exports without military still parse. */
   military: MilitarySchema.default(() => emptyMilitary()),
 })

@@ -1,7 +1,9 @@
 import {
   AntariaMetaSchema,
   BoardSchema,
+  CharactersSchema,
   emptyBoard,
+  emptyCharacters,
   emptyEvents,
   emptyIndicators,
   emptyMeta,
@@ -16,6 +18,7 @@ import {
   VerdictTurnSchema,
   type AntariaMeta,
   type Board,
+  type CharactersDoc,
   type EventsDoc,
   type Indicators,
   type Military,
@@ -281,6 +284,7 @@ export async function initCabinetFolder(
   await ensure('board.json', emptyBoard())
   await ensure('military.json', emptyMilitary())
   await ensure('events.json', emptyEvents())
+  await ensure('characters.json', emptyCharacters())
   const orders = await findChild(accessToken, folderId, 'orders')
   if (!orders) {
     await createSubfolder(accessToken, folderId, 'orders')
@@ -300,6 +304,7 @@ export type CabinetData = {
   orders: OrdersTurn[]
   verdicts: VerdictTurn[]
   events: EventsDoc
+  characters: CharactersDoc
 }
 
 export async function loadCabinet(
@@ -384,6 +389,14 @@ export async function loadCabinet(
     emptyEvents,
   )
 
+  const characters = await readOrDefault(
+    accessToken,
+    folderId,
+    'characters.json',
+    (r) => CharactersSchema.parse(r),
+    emptyCharacters,
+  )
+
   return {
     meta,
     profile,
@@ -393,6 +406,7 @@ export async function loadCabinet(
     orders,
     verdicts,
     events,
+    characters,
   }
 }
 
@@ -556,6 +570,17 @@ export async function saveEvents(
   })
 }
 
+export async function saveCharacters(
+  accessToken: string,
+  folderId: string,
+  characters: CharactersDoc,
+): Promise<void> {
+  await upsertJson(accessToken, folderId, 'characters.json', {
+    ...characters,
+    updatedAt: nowIso(),
+  })
+}
+
 export function cabinetToExport(data: CabinetData): AntariaExport {
   return {
     format: EXPORT_FORMAT,
@@ -569,6 +594,7 @@ export function cabinetToExport(data: CabinetData): AntariaExport {
     orders: data.orders,
     verdicts: data.verdicts,
     events: data.events,
+    characters: data.characters,
     military: data.military,
   }
 }
@@ -585,6 +611,7 @@ export async function writeExportToDrive(
   await saveBoard(accessToken, folderId, exp.board)
   await saveMilitary(accessToken, folderId, exp.military)
   await saveEvents(accessToken, folderId, exp.events)
+  await saveCharacters(accessToken, folderId, exp.characters)
   for (const turn of exp.orders) {
     await saveOrdersTurn(accessToken, folderId, turn)
   }

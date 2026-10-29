@@ -192,6 +192,24 @@ export const EventsSchema = z.object({
 })
 export type EventsDoc = z.infer<typeof EventsSchema>
 
+export const CharacterSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().default(''),
+  avatarUrl: z.string().optional(),
+  avatarFileId: z.string().optional(),
+  story: z.boolean().default(false),
+  at: z.string(),
+})
+export type Character = z.infer<typeof CharacterSchema>
+
+export const CharactersSchema = z.object({
+  schemaVersion: z.literal(SCHEMA_VERSION),
+  items: z.array(CharacterSchema).default([]),
+  updatedAt: z.string(),
+})
+export type CharactersDoc = z.infer<typeof CharactersSchema>
+
 export function nowIso(): string {
   return new Date().toISOString()
 }
@@ -250,6 +268,13 @@ export function emptyVerdictTurn(turn: number): VerdictTurn {
 
 export function emptyEvents(): EventsDoc {
   return EventsSchema.parse({
+    schemaVersion: SCHEMA_VERSION,
+    updatedAt: nowIso(),
+  })
+}
+
+export function emptyCharacters(): CharactersDoc {
+  return CharactersSchema.parse({
     schemaVersion: SCHEMA_VERSION,
     updatedAt: nowIso(),
   })

@@ -18,6 +18,7 @@ type ImportPhase =
         orders: number
         verdicts: number
         events: number
+        characters: number
         board: number
         ministries: number
       }
@@ -113,6 +114,7 @@ export function ImportExportPage() {
                 orders: snapshot.orders.length,
                 verdicts: snapshot.verdicts.length,
                 events: snapshot.events.items.length,
+                characters: snapshot.characters.items.length,
               },
               null,
               2,
@@ -141,6 +143,7 @@ export function ImportExportPage() {
               <li>Приказы (ходы): {importPhase.summary.orders}</li>
               <li>Вердикты (ходы): {importPhase.summary.verdicts}</li>
               <li>События: {importPhase.summary.events}</li>
+              <li>Персонажи: {importPhase.summary.characters}</li>
               <li>Пункты доски: {importPhase.summary.board}</li>
               <li>Министерства: {importPhase.summary.ministries}</li>
             </ul>
@@ -217,6 +220,7 @@ function summarize(exp: AntariaExport) {
     orders: exp.orders.length,
     verdicts: exp.verdicts.length,
     events: exp.events.items.length,
+    characters: exp.characters.items.length,
     board: exp.board.items.length,
     ministries: exp.profile.ministries.length,
   }

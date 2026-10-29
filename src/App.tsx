@@ -7,6 +7,7 @@ import { Admin } from './pages/Admin'
 import { Dashboard } from './pages/Dashboard'
 import { ImportExportPage } from './pages/ImportExportPage'
 import { Landing } from './pages/Landing'
+import { CharactersPage } from './pages/CharactersPage'
 import { EventsPage } from './pages/EventsPage'
 import { OrdersPage } from './pages/OrdersPage'
 import { Pending } from './pages/Pending'
@@ -39,6 +40,7 @@ export default function App() {
                   <Route path="orders" element={<OrdersPage />} />
                   <Route path="verdicts" element={<VerdictsPage />} />
                   <Route path="events" element={<EventsPage />} />
+                  <Route path="characters" element={<CharactersPage />} />
                   <Route path="relations" element={<Navigate to="/app" replace />} />
                   <Route path="profile" element={<ProfilePage />} />
                   <Route path="maps" element={<Navigate to="/app" replace />} />
