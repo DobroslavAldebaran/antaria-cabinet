@@ -364,15 +364,6 @@ export function OrdersPage() {
                   getAccessToken={ensureToken}
                 />
               </div>
-              <div className="field">
-                <label>Бюджет</label>
-                <input
-                  value={selected.budget ?? ''}
-                  onChange={(e) =>
-                    updateRow(selectedIdx, { item: { budget: e.target.value } })
-                  }
-                />
-              </div>
               <EffectsEditor
                 effects={selected.effects ?? []}
                 metrics={editorMetrics}
