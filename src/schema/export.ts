@@ -9,12 +9,14 @@ import {
   MinistriesSchema,
   OrdersTurnSchema,
   ProfileSchema,
+  ResponsibleOthersSchema,
   SCHEMA_VERSION,
   VerdictTurnSchema,
   emptyCharacters,
   emptyEvents,
   emptyMilitary,
   emptyMinistries,
+  emptyResponsibleOthers,
 } from './province'
 
 export const EXPORT_FORMAT = 'antaria-export' as const
@@ -39,6 +41,10 @@ export const AntariaExportSchema = z.object({
   ministries: MinistriesSchema.default(() => emptyMinistries()),
   /** Additive: old exports without military still parse. */
   military: MilitarySchema.default(() => emptyMilitary()),
+  /** Additive: old exports without responsible-others still parse. */
+  responsibleOthers: ResponsibleOthersSchema.default(() =>
+    emptyResponsibleOthers(),
+  ),
 })
 
 export type AntariaExport = z.infer<typeof AntariaExportSchema>

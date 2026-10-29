@@ -218,6 +218,20 @@ export const MinistriesSchema = z.object({
 })
 export type MinistriesDoc = z.infer<typeof MinistriesSchema>
 
+export const ResponsibleOtherSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  at: z.string(),
+})
+export type ResponsibleOther = z.infer<typeof ResponsibleOtherSchema>
+
+export const ResponsibleOthersSchema = z.object({
+  schemaVersion: z.literal(SCHEMA_VERSION),
+  items: z.array(ResponsibleOtherSchema).default([]),
+  updatedAt: z.string(),
+})
+export type ResponsibleOthersDoc = z.infer<typeof ResponsibleOthersSchema>
+
 export function nowIso(): string {
   return new Date().toISOString()
 }
@@ -290,6 +304,13 @@ export function emptyCharacters(): CharactersDoc {
 
 export function emptyMinistries(): MinistriesDoc {
   return MinistriesSchema.parse({
+    schemaVersion: SCHEMA_VERSION,
+    updatedAt: nowIso(),
+  })
+}
+
+export function emptyResponsibleOthers(): ResponsibleOthersDoc {
+  return ResponsibleOthersSchema.parse({
     schemaVersion: SCHEMA_VERSION,
     updatedAt: nowIso(),
   })

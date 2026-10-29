@@ -6,17 +6,20 @@ import {
   type CreateMetricAttach,
 } from '../components/EffectsEditor'
 import { MasterDetailList } from '../components/MasterDetailList'
+import { ResponsiblePicker } from '../components/ResponsiblePicker'
 import { RichTextEditor } from '../components/RichTextEditor'
 import { useDraftAutosave } from '../hooks/useDraftAutosave'
-import { saveAllOrdersTurns } from '../lib/drive'
+import { saveAllOrdersTurns, saveResponsibleOthers } from '../lib/drive'
 import { isOrderLinked, normalizeMetrics } from '../schema/metrics'
 import {
   SCHEMA_VERSION,
+  emptyResponsibleOthers,
   newId,
   nowIso,
   type Metric,
   type OrderItem,
   type OrdersTurn,
+  type ResponsibleOthersDoc,
 } from '../schema/province'
 import { Onboarding } from './Onboarding'
 
@@ -78,16 +81,24 @@ export function OrdersPage() {
   const seededFolder = useRef<string | null>(null)
   const turnQueryHandled = useRef<string | null>(null)
   const persistedTurnsRef = useRef<number[]>([])
+  const othersDirtyRef = useRef(false)
+  const othersRef = useRef<ResponsibleOthersDoc>(emptyResponsibleOthers())
 
   const orders = data?.orders ?? []
   const rows = useMemo(() => flattenOrders(orders), [orders])
   const items = useMemo(() => rows.map((row) => row.item), [rows])
+  const responsibleOthers =
+    data?.responsibleOthers ?? emptyResponsibleOthers()
 
   const defaultTurn = data?.meta.currentTurn ?? 0
 
   useEffect(() => {
     persistedTurnsRef.current = persistedTurns
   }, [persistedTurns])
+
+  useEffect(() => {
+    othersRef.current = responsibleOthers
+  }, [responsibleOthers])
 
   useEffect(() => {
     if (!binding || !data) return
@@ -99,6 +110,8 @@ export function OrdersPage() {
     const turns = data.orders.map((pack) => pack.turn)
     setPersistedTurns(turns)
     persistedTurnsRef.current = turns
+    othersDirtyRef.current = false
+    othersRef.current = data.responsibleOthers ?? emptyResponsibleOthers()
   }, [binding, data])
 
   useEffect(() => {
@@ -176,6 +189,15 @@ export function OrdersPage() {
       stamped,
       persistedTurnsRef.current,
     )
+    if (othersDirtyRef.current) {
+      const others = {
+        ...othersRef.current,
+        updatedAt: nowIso(),
+      }
+      await saveResponsibleOthers(token, binding.folderId, others)
+      othersRef.current = others
+      othersDirtyRef.current = false
+    }
     return stamped
   }
 
@@ -350,6 +372,26 @@ export function OrdersPage() {
                   onChange={(e) =>
                     updateRow(selectedIdx, { item: { goal: e.target.value } })
                   }
+                />
+              </div>
+              <div className="field">
+                <label>Ответственный</label>
+                <ResponsiblePicker
+                  ministries={data.ministries.items}
+                  characters={data.characters.items}
+                  others={responsibleOthers}
+                  value={selected.responsible}
+                  disabled={saveBusy}
+                  onChange={(responsible) =>
+                    updateRow(selectedIdx, {
+                      item: { responsible },
+                    })
+                  }
+                  onOthersChange={(next) => {
+                    othersRef.current = next
+                    othersDirtyRef.current = true
+                    setData({ ...data, responsibleOthers: next })
+                  }}
                 />
               </div>
               <div className="field">

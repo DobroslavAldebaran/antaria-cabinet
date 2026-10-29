@@ -1305,6 +1305,43 @@ button {
   margin: 0;
 }
 
+.entity-picker-section {
+  padding: 0.55rem 0.55rem 0.2rem;
+  margin: 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.entity-picker-dropdown .metric-picker-option.is-child {
+  padding-inline-start: calc(0.55rem + var(--nest, 0.85rem));
+}
+
+.entity-picker-dropdown .metric-picker-option.depth-1 {
+  --nest: 0.85rem;
+}
+
+.entity-picker-dropdown .metric-picker-option.depth-2 {
+  --nest: 1.7rem;
+}
+
+.entity-picker-dropdown .metric-picker-option.depth-3 {
+  --nest: 2.55rem;
+}
+
+.entity-picker-dropdown .metric-picker-option.depth-4 {
+  --nest: 3.4rem;
+}
+
+.entity-picker-dropdown .metric-picker-option.depth-5 {
+  --nest: 4.25rem;
+}
+
+.entity-picker-dropdown .metric-picker-option.depth-6 {
+  --nest: 5.1rem;
+}
+
 .entity-picker-more {
   min-width: 2.5rem;
   letter-spacing: 0.08em;

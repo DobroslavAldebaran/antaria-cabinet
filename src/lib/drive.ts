@@ -10,6 +10,7 @@ import {
   emptyMilitary,
   emptyMinistries,
   emptyProfile,
+  emptyResponsibleOthers,
   EventsSchema,
   IndicatorsSchema,
   MilitarySchema,
@@ -17,6 +18,7 @@ import {
   nowIso,
   OrdersTurnSchema,
   ProfileSchema,
+  ResponsibleOthersSchema,
   VerdictTurnSchema,
   type AntariaMeta,
   type Board,
@@ -27,6 +29,7 @@ import {
   type MinistriesDoc,
   type OrdersTurn,
   type Profile,
+  type ResponsibleOthersDoc,
   type VerdictTurn,
 } from '../schema/province'
 import { normalizeIndicators } from '../schema/metrics'
@@ -289,6 +292,7 @@ export async function initCabinetFolder(
   await ensure('events.json', emptyEvents())
   await ensure('characters.json', emptyCharacters())
   await ensure('ministries.json', emptyMinistries())
+  await ensure('responsible-others.json', emptyResponsibleOthers())
   const orders = await findChild(accessToken, folderId, 'orders')
   if (!orders) {
     await createSubfolder(accessToken, folderId, 'orders')
@@ -310,6 +314,7 @@ export type CabinetData = {
   events: EventsDoc
   characters: CharactersDoc
   ministries: MinistriesDoc
+  responsibleOthers: ResponsibleOthersDoc
 }
 
 export async function loadCabinet(
@@ -410,6 +415,14 @@ export async function loadCabinet(
     emptyMinistries,
   )
 
+  const responsibleOthers = await readOrDefault(
+    accessToken,
+    folderId,
+    'responsible-others.json',
+    (r) => ResponsibleOthersSchema.parse(r),
+    emptyResponsibleOthers,
+  )
+
   return {
     meta,
     profile,
@@ -421,6 +434,7 @@ export async function loadCabinet(
     events,
     characters,
     ministries,
+    responsibleOthers,
   }
 }
 
@@ -606,6 +620,17 @@ export async function saveMinistries(
   })
 }
 
+export async function saveResponsibleOthers(
+  accessToken: string,
+  folderId: string,
+  others: ResponsibleOthersDoc,
+): Promise<void> {
+  await upsertJson(accessToken, folderId, 'responsible-others.json', {
+    ...others,
+    updatedAt: nowIso(),
+  })
+}
+
 export function cabinetToExport(data: CabinetData): AntariaExport {
   return {
     format: EXPORT_FORMAT,
@@ -622,6 +647,7 @@ export function cabinetToExport(data: CabinetData): AntariaExport {
     characters: data.characters,
     ministries: data.ministries,
     military: data.military,
+    responsibleOthers: data.responsibleOthers,
   }
 }
 
@@ -639,6 +665,7 @@ export async function writeExportToDrive(
   await saveEvents(accessToken, folderId, exp.events)
   await saveCharacters(accessToken, folderId, exp.characters)
   await saveMinistries(accessToken, folderId, exp.ministries)
+  await saveResponsibleOthers(accessToken, folderId, exp.responsibleOthers)
   for (const turn of exp.orders) {
     await saveOrdersTurn(accessToken, folderId, turn)
   }

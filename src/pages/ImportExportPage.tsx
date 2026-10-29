@@ -21,6 +21,7 @@ type ImportPhase =
         characters: number
         board: number
         ministries: number
+        responsibleOthers: number
       }
     }
   | { kind: 'error'; fileName?: string; message: string }
@@ -116,6 +117,7 @@ export function ImportExportPage() {
                 events: snapshot.events.items.length,
                 characters: snapshot.characters.items.length,
                 ministries: snapshot.ministries.items.length,
+                responsibleOthers: snapshot.responsibleOthers.items.length,
               },
               null,
               2,
@@ -147,6 +149,7 @@ export function ImportExportPage() {
               <li>Персонажи: {importPhase.summary.characters}</li>
               <li>Пункты доски: {importPhase.summary.board}</li>
               <li>Министерства: {importPhase.summary.ministries}</li>
+              <li>Ответственные (прочее): {importPhase.summary.responsibleOthers}</li>
             </ul>
             <div className="btn-row">
               <Link className="btn btn-primary" to="/app">
@@ -224,5 +227,6 @@ function summarize(exp: AntariaExport) {
     characters: exp.characters.items.length,
     board: exp.board.items.length,
     ministries: exp.ministries.items.length,
+    responsibleOthers: exp.responsibleOthers.items.length,
   }
 }
