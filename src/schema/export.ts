@@ -4,12 +4,9 @@ import {
   BoardSchema,
   EventsSchema,
   IndicatorsSchema,
-  MapsSchema,
   MilitarySchema,
-  NewsLocalSchema,
   OrdersTurnSchema,
   ProfileSchema,
-  RelationsSchema,
   SCHEMA_VERSION,
   VerdictTurnSchema,
   emptyEvents,
@@ -32,9 +29,6 @@ export const AntariaExportSchema = z.object({
   /** Additive: old exports without verdicts/events still parse. */
   verdicts: z.array(VerdictTurnSchema).default([]),
   events: EventsSchema.default(() => emptyEvents()),
-  relations: RelationsSchema,
-  newsLocal: NewsLocalSchema,
-  maps: MapsSchema,
   /** Additive: old exports without military still parse. */
   military: MilitarySchema.default(() => emptyMilitary()),
 })

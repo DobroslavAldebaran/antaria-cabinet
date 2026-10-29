@@ -4,32 +4,23 @@ import {
   emptyBoard,
   emptyEvents,
   emptyIndicators,
-  emptyMaps,
   emptyMeta,
   emptyMilitary,
-  emptyNews,
   emptyProfile,
-  emptyRelations,
   EventsSchema,
   IndicatorsSchema,
-  MapsSchema,
   MilitarySchema,
-  NewsLocalSchema,
   nowIso,
   OrdersTurnSchema,
   ProfileSchema,
-  RelationsSchema,
   VerdictTurnSchema,
   type AntariaMeta,
   type Board,
   type EventsDoc,
   type Indicators,
-  type Maps,
   type Military,
-  type NewsLocal,
   type OrdersTurn,
   type Profile,
-  type Relations,
   type VerdictTurn,
 } from '../schema/province'
 import { normalizeIndicators } from '../schema/metrics'
@@ -288,9 +279,6 @@ export async function initCabinetFolder(
   await ensure('profile.json', emptyProfile())
   await ensure('indicators.json', emptyIndicators())
   await ensure('board.json', emptyBoard())
-  await ensure('relations.json', emptyRelations())
-  await ensure('news-local.json', emptyNews())
-  await ensure('maps.json', emptyMaps())
   await ensure('military.json', emptyMilitary())
   await ensure('events.json', emptyEvents())
   const orders = await findChild(accessToken, folderId, 'orders')
@@ -308,9 +296,6 @@ export type CabinetData = {
   profile: Profile
   indicators: Indicators
   board: Board
-  relations: Relations
-  news: NewsLocal
-  maps: Maps
   military: Military
   orders: OrdersTurn[]
   verdicts: VerdictTurn[]
@@ -350,27 +335,6 @@ export async function loadCabinet(
     'board.json',
     (r) => BoardSchema.parse(r),
     emptyBoard,
-  )
-  const relations = await readOrDefault(
-    accessToken,
-    folderId,
-    'relations.json',
-    (r) => RelationsSchema.parse(r),
-    emptyRelations,
-  )
-  const news = await readOrDefault(
-    accessToken,
-    folderId,
-    'news-local.json',
-    (r) => NewsLocalSchema.parse(r),
-    emptyNews,
-  )
-  const maps = await readOrDefault(
-    accessToken,
-    folderId,
-    'maps.json',
-    (r) => MapsSchema.parse(r),
-    emptyMaps,
   )
   const military = await readOrDefault(
     accessToken,
@@ -425,9 +389,6 @@ export async function loadCabinet(
     profile,
     indicators,
     board,
-    relations,
-    news,
-    maps,
     military,
     orders,
     verdicts,
@@ -476,39 +437,6 @@ export async function saveBoard(
 ): Promise<void> {
   await upsertJson(accessToken, folderId, 'board.json', {
     ...board,
-    updatedAt: nowIso(),
-  })
-}
-
-export async function saveRelations(
-  accessToken: string,
-  folderId: string,
-  relations: Relations,
-): Promise<void> {
-  await upsertJson(accessToken, folderId, 'relations.json', {
-    ...relations,
-    updatedAt: nowIso(),
-  })
-}
-
-export async function saveNews(
-  accessToken: string,
-  folderId: string,
-  news: NewsLocal,
-): Promise<void> {
-  await upsertJson(accessToken, folderId, 'news-local.json', {
-    ...news,
-    updatedAt: nowIso(),
-  })
-}
-
-export async function saveMaps(
-  accessToken: string,
-  folderId: string,
-  maps: Maps,
-): Promise<void> {
-  await upsertJson(accessToken, folderId, 'maps.json', {
-    ...maps,
     updatedAt: nowIso(),
   })
 }
@@ -641,9 +569,6 @@ export function cabinetToExport(data: CabinetData): AntariaExport {
     orders: data.orders,
     verdicts: data.verdicts,
     events: data.events,
-    relations: data.relations,
-    newsLocal: data.news,
-    maps: data.maps,
     military: data.military,
   }
 }
@@ -658,9 +583,6 @@ export async function writeExportToDrive(
   await saveProfile(accessToken, folderId, exp.profile)
   await saveIndicators(accessToken, folderId, exp.indicators)
   await saveBoard(accessToken, folderId, exp.board)
-  await saveRelations(accessToken, folderId, exp.relations)
-  await saveNews(accessToken, folderId, exp.newsLocal)
-  await saveMaps(accessToken, folderId, exp.maps)
   await saveMilitary(accessToken, folderId, exp.military)
   await saveEvents(accessToken, folderId, exp.events)
   for (const turn of exp.orders) {

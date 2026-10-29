@@ -192,52 +192,6 @@ export const EventsSchema = z.object({
 })
 export type EventsDoc = z.infer<typeof EventsSchema>
 
-export const RelationPartySchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  stance: z.string().default('neutral'),
-  treaties: z.array(z.string()).default([]),
-  notes: z.string().optional(),
-})
-
-export const RelationsSchema = z.object({
-  schemaVersion: z.literal(SCHEMA_VERSION),
-  parties: z.array(RelationPartySchema).default([]),
-  updatedAt: z.string(),
-})
-export type Relations = z.infer<typeof RelationsSchema>
-
-export const NewsItemSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  url: z.string().optional(),
-  date: z.string().optional(),
-  excerpt: z.string().optional(),
-  source: z.string().optional(),
-})
-
-export const NewsLocalSchema = z.object({
-  schemaVersion: z.literal(SCHEMA_VERSION),
-  items: z.array(NewsItemSchema).default([]),
-  updatedAt: z.string(),
-})
-export type NewsLocal = z.infer<typeof NewsLocalSchema>
-
-export const MapItemSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  url: z.string().optional(),
-  driveFileId: z.string().optional(),
-  note: z.string().optional(),
-})
-
-export const MapsSchema = z.object({
-  schemaVersion: z.literal(SCHEMA_VERSION),
-  items: z.array(MapItemSchema).default([]),
-  updatedAt: z.string(),
-})
-export type Maps = z.infer<typeof MapsSchema>
-
 export function nowIso(): string {
   return new Date().toISOString()
 }
@@ -266,27 +220,6 @@ export function emptyIndicators(turn = 0): Indicators {
 
 export function emptyBoard(): Board {
   return BoardSchema.parse({
-    schemaVersion: SCHEMA_VERSION,
-    updatedAt: nowIso(),
-  })
-}
-
-export function emptyRelations(): Relations {
-  return RelationsSchema.parse({
-    schemaVersion: SCHEMA_VERSION,
-    updatedAt: nowIso(),
-  })
-}
-
-export function emptyNews(): NewsLocal {
-  return NewsLocalSchema.parse({
-    schemaVersion: SCHEMA_VERSION,
-    updatedAt: nowIso(),
-  })
-}
-
-export function emptyMaps(): Maps {
-  return MapsSchema.parse({
     schemaVersion: SCHEMA_VERSION,
     updatedAt: nowIso(),
   })

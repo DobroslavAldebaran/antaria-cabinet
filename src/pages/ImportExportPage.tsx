@@ -20,7 +20,6 @@ type ImportPhase =
         events: number
         board: number
         ministries: number
-        relations: number
       }
     }
   | { kind: 'error'; fileName?: string; message: string }
@@ -144,7 +143,6 @@ export function ImportExportPage() {
               <li>События: {importPhase.summary.events}</li>
               <li>Пункты доски: {importPhase.summary.board}</li>
               <li>Министерства: {importPhase.summary.ministries}</li>
-              <li>Отношения: {importPhase.summary.relations}</li>
             </ul>
             <div className="btn-row">
               <Link className="btn btn-primary" to="/app">
@@ -221,6 +219,5 @@ function summarize(exp: AntariaExport) {
     events: exp.events.items.length,
     board: exp.board.items.length,
     ministries: exp.profile.ministries.length,
-    relations: exp.relations.parties.length,
   }
 }

@@ -20,10 +20,7 @@ export function Layout() {
                 ['/app/orders', 'Приказы'],
                 ['/app/verdicts', 'Вердикты'],
                 ['/app/events', 'События'],
-                ['/app/relations', 'Отношения'],
                 ['/app/profile', 'Профиль'],
-                ['/app/maps', 'Карты'],
-                ['/app/news', 'Новости'],
                 ['/app/io', 'Импорт/Экспорт'],
               ] as const
             ).map(([to, label]) => (

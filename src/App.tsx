@@ -7,13 +7,10 @@ import { Admin } from './pages/Admin'
 import { Dashboard } from './pages/Dashboard'
 import { ImportExportPage } from './pages/ImportExportPage'
 import { Landing } from './pages/Landing'
-import { MapsPage } from './pages/MapsPage'
-import { NewsPage } from './pages/NewsPage'
 import { EventsPage } from './pages/EventsPage'
 import { OrdersPage } from './pages/OrdersPage'
 import { Pending } from './pages/Pending'
 import { ProfilePage } from './pages/ProfilePage'
-import { RelationsPage } from './pages/RelationsPage'
 import { VerdictsPage } from './pages/VerdictsPage'
 
 function CabinetLayout() {
@@ -42,10 +39,10 @@ export default function App() {
                   <Route path="orders" element={<OrdersPage />} />
                   <Route path="verdicts" element={<VerdictsPage />} />
                   <Route path="events" element={<EventsPage />} />
-                  <Route path="relations" element={<RelationsPage />} />
+                  <Route path="relations" element={<Navigate to="/app" replace />} />
                   <Route path="profile" element={<ProfilePage />} />
-                  <Route path="maps" element={<MapsPage />} />
-                  <Route path="news" element={<NewsPage />} />
+                  <Route path="maps" element={<Navigate to="/app" replace />} />
+                  <Route path="news" element={<Navigate to="/app" replace />} />
                   <Route path="io" element={<ImportExportPage />} />
                 </Route>
                 <Route element={<RequireAdmin />}>
