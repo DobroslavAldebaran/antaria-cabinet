@@ -544,6 +544,24 @@ export async function saveOrdersTurn(
   )
 }
 
+/** Write every pack and trash turn files that disappeared from the list. */
+export async function saveAllOrdersTurns(
+  accessToken: string,
+  folderId: string,
+  next: OrdersTurn[],
+  previousTurns: number[],
+): Promise<void> {
+  const keep = new Set(next.map((pack) => pack.turn))
+  for (const pack of next) {
+    await saveOrdersTurn(accessToken, folderId, pack)
+  }
+  for (const turn of previousTurns) {
+    if (!keep.has(turn)) {
+      await deleteOrdersTurn(accessToken, folderId, turn)
+    }
+  }
+}
+
 export async function saveVerdictTurn(
   accessToken: string,
   folderId: string,

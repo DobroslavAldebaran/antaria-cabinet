@@ -8,11 +8,11 @@ import {
 import { MasterDetailList } from '../components/MasterDetailList'
 import { RichTextEditor } from '../components/RichTextEditor'
 import { useDraftAutosave } from '../hooks/useDraftAutosave'
-import { saveOrdersTurn } from '../lib/drive'
+import { saveAllOrdersTurns } from '../lib/drive'
 import { parseOrdersMarkdown } from '../lib/mdOrders'
 import { isOrderLinked, normalizeMetrics } from '../schema/metrics'
 import {
-  emptyOrdersTurn,
+  SCHEMA_VERSION,
   newId,
   nowIso,
   type Metric,
@@ -21,53 +21,101 @@ import {
 } from '../schema/province'
 import { Onboarding } from './Onboarding'
 
-function stripUpdatedAt(pack: OrdersTurn): string {
-  return JSON.stringify({ ...pack, updatedAt: '' })
+type OrderRow = { turn: number; item: OrderItem }
+
+function stripOrdersUpdatedAt(orders: OrdersTurn[]): string {
+  return JSON.stringify(orders.map((o) => ({ ...o, updatedAt: '' })))
+}
+
+function flattenOrders(orders: OrdersTurn[]): OrderRow[] {
+  return orders
+    .flatMap((pack) => pack.items.map((item) => ({ turn: pack.turn, item })))
+    .sort((a, b) => {
+      if (b.turn !== a.turn) return b.turn - a.turn
+      return a.item.title.localeCompare(b.item.title, 'ru')
+    })
+}
+
+function rebuildOrders(
+  rows: OrderRow[],
+  previous: OrdersTurn[],
+): OrdersTurn[] {
+  const prevByTurn = new Map(previous.map((pack) => [pack.turn, pack]))
+  const grouped = new Map<number, OrderItem[]>()
+  for (const { turn, item } of rows) {
+    const list = grouped.get(turn) ?? []
+    list.push(item)
+    grouped.set(turn, list)
+  }
+  return [...grouped.entries()]
+    .sort((a, b) => b[0] - a[0])
+    .map(([turn, items]) => {
+      const old = prevByTurn.get(turn)
+      return {
+        schemaVersion: SCHEMA_VERSION,
+        turn,
+        visibility: old?.visibility ?? 'open',
+        items,
+        updatedAt: nowIso(),
+      } satisfies OrdersTurn
+    })
+}
+
+function parseTurnValue(raw: string): number {
+  if (raw === '') return 0
+  const n = Number(raw)
+  if (!Number.isFinite(n) || n < 0) return 0
+  return Math.trunc(n)
 }
 
 export function OrdersPage() {
   const { binding, data, setData, ensureToken, busy } = useCabinet()
   const [searchParams] = useSearchParams()
-  const [turn, setTurn] = useState(0)
   const [msg, setMsg] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [md, setMd] = useState('')
   const [mdOpen, setMdOpen] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [savedIdsByTurn, setSavedIdsByTurn] = useState<Map<number, Set<string>>>(
-    () => new Map(),
-  )
+  const [savedIds, setSavedIds] = useState<Set<string>>(() => new Set())
+  const [persistedTurns, setPersistedTurns] = useState<number[]>([])
   const seededFolder = useRef<string | null>(null)
+  const turnQueryHandled = useRef<string | null>(null)
+  const persistedTurnsRef = useRef<number[]>([])
+
+  const orders = data?.orders ?? []
+  const rows = useMemo(() => flattenOrders(orders), [orders])
+  const items = useMemo(() => rows.map((row) => row.item), [rows])
+
+  const defaultTurn = data?.meta.currentTurn ?? 0
 
   useEffect(() => {
-    const q = searchParams.get('turn')
-    if (q == null || q === '') return
-    const n = Number(q)
-    if (Number.isFinite(n) && n >= 0) setTurn(n)
-  }, [searchParams])
-
-  const currentTurn = turn || data?.meta.currentTurn || 1
-
-  const pack = useMemo((): OrdersTurn => {
-    if (!data) return emptyOrdersTurn(currentTurn)
-    return (
-      data.orders.find((o) => o.turn === currentTurn) ??
-      emptyOrdersTurn(currentTurn)
-    )
-  }, [data, currentTurn])
-
-  const items = pack.items
+    persistedTurnsRef.current = persistedTurns
+  }, [persistedTurns])
 
   useEffect(() => {
     if (!binding || !data) return
     if (seededFolder.current === binding.folderId) return
     seededFolder.current = binding.folderId
-    const m = new Map<number, Set<string>>()
-    for (const o of data.orders) {
-      m.set(o.turn, new Set(o.items.map((i) => i.id)))
-    }
-    setSavedIdsByTurn(m)
+    setSavedIds(
+      new Set(data.orders.flatMap((pack) => pack.items.map((i) => i.id))),
+    )
+    const turns = data.orders.map((pack) => pack.turn)
+    setPersistedTurns(turns)
+    persistedTurnsRef.current = turns
   }, [binding, data])
+
+  useEffect(() => {
+    const q = searchParams.get('turn')
+    if (q == null || q === '') return
+    if (turnQueryHandled.current === q) return
+    const n = Number(q)
+    if (!Number.isFinite(n) || n < 0) return
+    const match = rows.find((row) => row.turn === n)
+    if (match) {
+      setSelectedId(match.item.id)
+      turnQueryHandled.current = q
+    }
+  }, [searchParams, rows])
 
   useEffect(() => {
     if (!items.length) {
@@ -76,15 +124,16 @@ export function OrdersPage() {
     }
     if (selectedId && items.some((i) => i.id === selectedId)) return
     setSelectedId(items[0]?.id ?? null)
-  }, [items, selectedId, currentTurn])
+  }, [items, selectedId])
 
   const metrics = useMemo(
     () => normalizeMetrics(data?.indicators.metrics ?? []),
     [data?.indicators.metrics],
   )
 
-  const selectedIdx = items.findIndex((i) => i.id === selectedId)
-  const selected = selectedIdx >= 0 ? items[selectedIdx] : null
+  const selectedIdx = rows.findIndex((row) => row.item.id === selectedId)
+  const selectedRow = selectedIdx >= 0 ? rows[selectedIdx] : null
+  const selected = selectedRow?.item ?? null
 
   const editorMetrics = useMemo(() => {
     if (!selected) return metrics
@@ -96,43 +145,56 @@ export function OrdersPage() {
       ? isOrderLinked(selected.id, data.verdicts)
       : false
 
-  const persistedIds =
-    savedIdsByTurn.get(currentTurn) ?? new Set<string>()
-
   const canClearSelected =
-    Boolean(selected) && selected != null && !persistedIds.has(selected.id)
+    Boolean(selected) && selected != null && !savedIds.has(selected.id)
 
-  const setPack = (next: OrdersTurn) => {
+  const setOrders = (next: OrdersTurn[]) => {
     if (!data) return
-    const others = data.orders.filter((o) => o.turn !== next.turn)
-    setData({
-      ...data,
-      orders: [...others, next].sort((a, b) => b.turn - a.turn),
-    })
+    setData({ ...data, orders: next })
   }
 
-  const markPersisted = (next: OrdersTurn) => {
-    setSavedIdsByTurn((prev) => {
-      const map = new Map(prev)
-      map.set(next.turn, new Set(next.items.map((i) => i.id)))
-      return map
-    })
+  const setRows = (nextRows: OrderRow[]) => {
+    setOrders(rebuildOrders(nextRows, orders))
+  }
+
+  const markPersisted = (next: OrdersTurn[]) => {
+    setSavedIds(
+      new Set(next.flatMap((pack) => pack.items.map((i) => i.id))),
+    )
+    const turns = next.map((pack) => pack.turn)
+    setPersistedTurns(turns)
+    persistedTurnsRef.current = turns
+  }
+
+  const persist = async (current: OrdersTurn[]) => {
+    if (!binding) return
+    const token = await ensureToken()
+    const stamped = current.map((pack) => ({
+      ...pack,
+      updatedAt: nowIso(),
+    }))
+    await saveAllOrdersTurns(
+      token,
+      binding.folderId,
+      stamped,
+      persistedTurnsRef.current,
+    )
+    return stamped
   }
 
   const { phase, markSaved, valueRef } = useDraftAutosave({
-    value: pack,
-    resetKey: `${binding?.folderId ?? ''}:${currentTurn}`,
+    value: orders,
+    resetKey: binding?.folderId ?? '',
     enabled: Boolean(binding && data),
     onSave: async (current) => {
       if (!binding) return
       setErr(null)
-      const token = await ensureToken()
-      const next = { ...current, turn: currentTurn, updatedAt: nowIso() }
-      await saveOrdersTurn(token, binding.folderId, next)
-      markPersisted(next)
-      if (stripUpdatedAt(valueRef.current) === stripUpdatedAt(current)) {
-        setPack(next)
-        markSaved(next, 'draft')
+      const stamped = await persist(current)
+      if (!stamped) return
+      markPersisted(stamped)
+      if (stripOrdersUpdatedAt(valueRef.current) === stripOrdersUpdatedAt(current)) {
+        setOrders(stamped)
+        markSaved(stamped, 'draft')
       }
       setMsg('Черновик сохранён')
     },
@@ -140,10 +202,17 @@ export function OrdersPage() {
 
   if (!binding || !data) return <Onboarding />
 
-  const updateItem = (idx: number, patch: Partial<OrderItem>) => {
-    const nextItems = [...pack.items]
-    nextItems[idx] = { ...nextItems[idx], ...patch }
-    setPack({ ...pack, turn: currentTurn, items: nextItems })
+  const updateRow = (
+    idx: number,
+    patch: { turn?: number; item?: Partial<OrderItem> },
+  ) => {
+    const next = [...rows]
+    const cur = next[idx]
+    next[idx] = {
+      turn: patch.turn ?? cur.turn,
+      item: patch.item ? { ...cur.item, ...patch.item } : cur.item,
+    }
+    setRows(next)
   }
 
   const addCreatedMetric = (metric: Metric, attach: CreateMetricAttach) => {
@@ -161,7 +230,7 @@ export function OrdersPage() {
         e.id === attach.effectId ? { ...e, metricId: metric.id } : e,
       )
     }
-    updateItem(selectedIdx, { createdMetrics, effects })
+    updateRow(selectedIdx, { item: { createdMetrics, effects } })
   }
 
   const createOrder = () => {
@@ -173,20 +242,16 @@ export function OrdersPage() {
       effects: [],
       createdMetrics: [],
     }
-    setPack({
-      ...pack,
-      turn: currentTurn,
-      items: [...pack.items, item],
-    })
+    setRows([...rows, { turn: defaultTurn, item }])
     setSelectedId(item.id)
     setErr(null)
   }
 
   const clearSelected = () => {
-    if (!selected || persistedIds.has(selected.id)) return
-    const nextItems = pack.items.filter((x) => x.id !== selected.id)
-    setPack({ ...pack, turn: currentTurn, items: nextItems })
-    setSelectedId(nextItems[0]?.id ?? null)
+    if (!selected || savedIds.has(selected.id)) return
+    const next = rows.filter((row) => row.item.id !== selected.id)
+    setRows(next)
+    setSelectedId(next[0]?.item.id ?? null)
     setErr(null)
     setMsg(null)
   }
@@ -199,24 +264,23 @@ export function OrdersPage() {
       )
       return
     }
-    const nextItems = pack.items.filter((x) => x.id !== selected.id)
-    setPack({ ...pack, turn: currentTurn, items: nextItems })
-    setSelectedId(nextItems[0]?.id ?? null)
+    const next = rows.filter((row) => row.item.id !== selected.id)
+    setRows(next)
+    setSelectedId(next[0]?.item.id ?? null)
     setErr(null)
-    setMsg('Приказ удалён локально — сохраните ход')
+    setMsg('Приказ удалён локально — сохраните список')
   }
 
   const save = async () => {
     setErr(null)
     setMsg(null)
     try {
-      const token = await ensureToken()
-      const next = { ...pack, turn: currentTurn, updatedAt: nowIso() }
-      await saveOrdersTurn(token, binding.folderId, next)
-      setPack(next)
-      markPersisted(next)
-      markSaved(next, 'manual')
-      setMsg(`Ход ${currentTurn} сохранён`)
+      const stamped = await persist(orders)
+      if (!stamped) return
+      setOrders(stamped)
+      markPersisted(stamped)
+      markSaved(stamped, 'manual')
+      setMsg('Приказы сохранены')
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Ошибка сохранения')
     }
@@ -228,41 +292,57 @@ export function OrdersPage() {
       ? 'Сохранение…'
       : phase === 'saved'
         ? 'Сохранено'
-        : 'Сохранить ход'
+        : 'Сохранить'
 
   return (
     <div className="page page-wide">
       <div className="panel">
         <h2>Приказы</h2>
-        <div className="field">
-          <label>Ход</label>
-          <input
-            type="number"
-            value={currentTurn}
-            onChange={(e) => setTurn(Number(e.target.value) || 0)}
-          />
-        </div>
+        <p className="muted">
+          Ход задаётся у каждого приказа. Нулевой ход допустим.
+        </p>
 
         <MasterDetailList
-          items={pack.items}
+          items={items}
           selectedId={selectedId}
           onSelect={setSelectedId}
           onCreate={createOrder}
           createLabel="Новый приказ"
-          emptyLabel="В этом ходе ещё нет приказов"
+          emptyLabel="Пока нет приказов"
           renderItemLabel={(id) => {
-            const item = pack.items.find((x) => x.id === id)
-            return item?.title?.trim() || 'Без названия'
+            const row = rows.find((x) => x.item.id === id)
+            const title = row?.item.title?.trim() || 'Без названия'
+            return (
+              <>
+                <span className="master-detail-turn">{row?.turn ?? '?'}</span>
+                <span className="master-detail-label">{title}</span>
+              </>
+            )
           }}
         >
-          {selected && selectedIdx >= 0 ? (
+          {selected && selectedRow && selectedIdx >= 0 ? (
             <div className="stack">
               <div className="field">
                 <label>Заголовок</label>
                 <input
                   value={selected.title}
                   onChange={(e) =>
-                    updateItem(selectedIdx, { title: e.target.value })
+                    updateRow(selectedIdx, { item: { title: e.target.value } })
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>Ход</label>
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  required
+                  value={selectedRow.turn}
+                  onChange={(e) =>
+                    updateRow(selectedIdx, {
+                      turn: parseTurnValue(e.target.value),
+                    })
                   }
                 />
               </div>
@@ -271,7 +351,7 @@ export function OrdersPage() {
                 <input
                   value={selected.goal ?? ''}
                   onChange={(e) =>
-                    updateItem(selectedIdx, { goal: e.target.value })
+                    updateRow(selectedIdx, { item: { goal: e.target.value } })
                   }
                 />
               </div>
@@ -279,7 +359,7 @@ export function OrdersPage() {
                 <label>Текст</label>
                 <RichTextEditor
                   value={selected.body}
-                  onChange={(body) => updateItem(selectedIdx, { body })}
+                  onChange={(body) => updateRow(selectedIdx, { item: { body } })}
                   folderId={binding.folderId}
                   getAccessToken={ensureToken}
                 />
@@ -289,7 +369,7 @@ export function OrdersPage() {
                 <input
                   value={selected.budget ?? ''}
                   onChange={(e) =>
-                    updateItem(selectedIdx, { budget: e.target.value })
+                    updateRow(selectedIdx, { item: { budget: e.target.value } })
                   }
                 />
               </div>
@@ -297,14 +377,18 @@ export function OrdersPage() {
                 effects={selected.effects ?? []}
                 metrics={editorMetrics}
                 onCreateMetric={addCreatedMetric}
-                onChange={(effects) => updateItem(selectedIdx, { effects })}
+                onChange={(effects) =>
+                  updateRow(selectedIdx, { item: { effects } })
+                }
               />
               <label>
                 <input
                   type="checkbox"
                   checked={selected.secret}
                   onChange={(e) =>
-                    updateItem(selectedIdx, { secret: e.target.checked })
+                    updateRow(selectedIdx, {
+                      item: { secret: e.target.checked },
+                    })
                   }
                 />{' '}
                 Тайный
@@ -393,11 +477,10 @@ export function OrdersPage() {
               className="btn"
               onClick={() => {
                 const imported = parseOrdersMarkdown(md)
-                setPack({
-                  ...pack,
-                  turn: currentTurn,
-                  items: [...pack.items, ...imported],
-                })
+                setRows([
+                  ...rows,
+                  ...imported.map((item) => ({ turn: defaultTurn, item })),
+                ])
                 if (imported[0]) setSelectedId(imported[0].id)
                 setMsg(`Импортировано пунктов: ${imported.length}`)
               }}

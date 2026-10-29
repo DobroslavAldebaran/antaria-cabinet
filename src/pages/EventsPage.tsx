@@ -283,7 +283,17 @@ export function EventsPage() {
           emptyLabel="Пока нет событий"
           renderItemLabel={(id) => {
             const item = events.items.find((x) => x.id === id)
-            return item?.title?.trim() || 'Без названия'
+            const title = item?.title?.trim() || 'Без названия'
+            return (
+              <>
+                <span className="master-detail-turn">
+                  {item?.turn != null && Number.isFinite(item.turn)
+                    ? item.turn
+                    : '?'}
+                </span>
+                <span className="master-detail-label">{title}</span>
+              </>
+            )
           }}
         >
           {selected && selectedIdx >= 0 ? (
@@ -305,8 +315,13 @@ export function EventsPage() {
                   value={selected.turn ?? ''}
                   onChange={(e) => {
                     const raw = e.target.value
+                    if (raw === '') {
+                      updateItem(selectedIdx, { turn: undefined })
+                      return
+                    }
+                    const n = Number(raw)
                     updateItem(selectedIdx, {
-                      turn: raw === '' ? undefined : Number(raw) || 0,
+                      turn: Number.isFinite(n) && n >= 0 ? Math.trunc(n) : 0,
                     })
                   }}
                 />

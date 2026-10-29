@@ -1080,6 +1080,24 @@ button {
   padding: 0.55rem 0.65rem;
   border-radius: 2px;
   cursor: pointer;
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+}
+
+.master-detail-turn {
+  flex: 0 0 auto;
+  min-width: 1.5ch;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-2);
+  font-weight: 600;
+}
+
+.master-detail-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .master-detail-item:hover,

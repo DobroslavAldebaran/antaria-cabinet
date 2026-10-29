@@ -38,7 +38,7 @@ function stripUpdatedAt(pack: VerdictTurn): string {
 export function VerdictsPage() {
   const { binding, data, setData, ensureToken, busy } = useCabinet()
   const [searchParams] = useSearchParams()
-  const [turn, setTurn] = useState(0)
+  const [turn, setTurn] = useState<number | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [savedTurns, setSavedTurns] = useState<Set<number>>(() => new Set())
@@ -48,7 +48,7 @@ export function VerdictsPage() {
     const q = searchParams.get('turn')
     if (q == null || q === '') return
     const n = Number(q)
-    if (Number.isFinite(n) && n >= 0) setTurn(n)
+    if (Number.isFinite(n) && n >= 0) setTurn(Math.trunc(n))
   }, [searchParams])
 
   const turnList = useMemo(() => {
@@ -56,12 +56,12 @@ export function VerdictsPage() {
     const set = new Set<number>()
     for (const o of data.orders) set.add(o.turn)
     for (const v of data.verdicts) set.add(v.turn)
-    if (turn) set.add(turn)
-    if (data.meta.currentTurn) set.add(data.meta.currentTurn)
+    if (turn != null) set.add(turn)
+    if (data.meta.currentTurn != null) set.add(data.meta.currentTurn)
     return [...set].sort((a, b) => b - a)
   }, [data, turn])
 
-  const currentTurn = turn || data?.meta.currentTurn || turnList[0] || 1
+  const currentTurn = turn ?? data?.meta.currentTurn ?? turnList[0] ?? 0
 
   useEffect(() => {
     if (!binding || !data) return
@@ -306,7 +306,12 @@ export function VerdictsPage() {
 
   const createTurn = () => {
     const nextTurn =
-      Math.max(0, ...turnList, data.meta.currentTurn || 0, turn || 0) + 1
+      Math.max(
+        0,
+        ...turnList,
+        data.meta.currentTurn ?? 0,
+        turn ?? 0,
+      ) + 1
     setTurn(nextTurn)
     if (!data.verdicts.some((v) => v.turn === nextTurn)) {
       setPack(emptyVerdictTurn(nextTurn))
@@ -352,7 +357,7 @@ export function VerdictsPage() {
         nextVerdicts[0]?.turn ??
         data.orders[0]?.turn ??
         data.meta.currentTurn ??
-        1
+        0
       setTurn(nextTurn)
       setMsg(`Вердикт хода ${currentTurn} удалён`)
     } catch (e) {
@@ -378,19 +383,37 @@ export function VerdictsPage() {
         <MasterDetailList
           items={turnItems}
           selectedId={String(currentTurn)}
-          onSelect={(id) => setTurn(Number(id) || 0)}
+          onSelect={(id) => {
+            const n = Number(id)
+            setTurn(Number.isFinite(n) ? Math.trunc(n) : 0)
+          }}
           onCreate={createTurn}
           createLabel="Новый вердикт"
           emptyLabel="Пока нет ходов"
-          renderItemLabel={(id) => `Ход ${id}`}
+          renderItemLabel={(id) => (
+            <>
+              <span className="master-detail-turn">{id}</span>
+              <span className="master-detail-label">Вердикт</span>
+            </>
+          )}
         >
           <div className="stack">
             <div className="field">
               <label>Ход</label>
               <input
                 type="number"
+                min={0}
+                step={1}
                 value={currentTurn}
-                onChange={(e) => setTurn(Number(e.target.value) || 0)}
+                onChange={(e) => {
+                  const raw = e.target.value
+                  if (raw === '') {
+                    setTurn(0)
+                    return
+                  }
+                  const n = Number(raw)
+                  setTurn(Number.isFinite(n) && n >= 0 ? Math.trunc(n) : 0)
+                }}
               />
             </div>
             <div className="field">
