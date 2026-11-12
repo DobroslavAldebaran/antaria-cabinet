@@ -6,6 +6,7 @@ import {
   type CreateMetricAttach,
 } from '../components/EffectsEditor'
 import { MasterDetailList } from '../components/MasterDetailList'
+import { OrderExport } from '../components/OrderExport'
 import { ResponsiblePicker } from '../components/ResponsiblePicker'
 import { RichTextEditor } from '../components/RichTextEditor'
 import { useDraftAutosave } from '../hooks/useDraftAutosave'
@@ -258,6 +259,7 @@ export function OrdersPage() {
       title: 'Новый приказ',
       body: '',
       secret: false,
+      military: false,
       effects: [],
       createdMetrics: [],
     }
@@ -320,6 +322,8 @@ export function OrdersPage() {
         <p className="muted">
           Ход задаётся у каждого приказа. Нулевой ход допустим.
         </p>
+
+        <OrderExport key={binding.folderId} rows={rows} data={data} getToken={ensureToken} />
 
         <MasterDetailList
           items={items}
@@ -422,6 +426,16 @@ export function OrdersPage() {
                   }
                 />{' '}
                 Тайный
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={selected.military}
+                  onChange={(e) =>
+                    updateRow(selectedIdx, { item: { military: e.target.checked } })
+                  }
+                />{' '}
+                Военный
               </label>
               <div className="btn-row">
                 <button

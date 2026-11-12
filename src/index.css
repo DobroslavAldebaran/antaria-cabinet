@@ -445,6 +445,25 @@ button {
   width: 100%;
 }
 
+.order-export-buttons {
+  margin-bottom: 1rem;
+}
+
+.order-export-list {
+  display: grid;
+  gap: 0.5rem;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.order-export-list label {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: baseline;
+  gap: 0.5rem;
+  overflow-wrap: anywhere;
+}
+
 .metric-history-dialog::backdrop {
   background: rgba(8, 6, 4, 0.72);
 }

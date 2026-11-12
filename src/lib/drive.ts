@@ -173,6 +173,11 @@ export async function writeJsonFile(
 
 const MEDIA_MAX_BYTES = 5 * 1024 * 1024
 
+export async function readMediaBlob(accessToken: string, fileId: string): Promise<Blob> {
+  const response = await driveFetch(accessToken, `${DRIVE_FILES}/${encodeURIComponent(fileId)}?alt=media`)
+  return response.blob()
+}
+
 export async function ensureMediaFolder(
   accessToken: string,
   cabinetFolderId: string,

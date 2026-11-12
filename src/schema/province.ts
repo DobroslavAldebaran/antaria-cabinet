@@ -124,6 +124,7 @@ export const OrderItemSchema = z.object({
   budget: z.string().optional(),
   responsible: z.string().optional(),
   secret: z.boolean().default(false),
+  military: z.boolean().default(false),
   expectation: z.string().optional(),
   /** Additive: old orders without effects still parse. */
   effects: z.array(EffectSchema).default([]),
