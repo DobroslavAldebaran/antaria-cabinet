@@ -259,10 +259,22 @@ export function Dashboard() {
       <DashboardSettingsDialog
         open={settingsOpen}
         metrics={metrics}
+        fixedOrderMetricId={data.indicators.fixedOrderMetricId}
         busy={busy}
         message={settingsMsg}
         onClose={() => setSettingsOpen(false)}
         onChangeMetrics={changeMetrics}
+        onChangeFixedOrderMetric={(fixedOrderMetricId) => {
+          setSettingsMsg(null)
+          setData({
+            ...data,
+            indicators: {
+              ...data.indicators,
+              fixedOrderMetricId,
+              updatedAt: nowIso(),
+            },
+          })
+        }}
         onSave={() => void saveSettings()}
       />
     </div>

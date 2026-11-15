@@ -77,6 +77,8 @@ export const IndicatorsSchema = z.object({
   schemaVersion: z.literal(SCHEMA_VERSION),
   turn: z.number().int().nonnegative().default(0),
   metrics: z.array(MetricSchema).default([]),
+  /** Metric used for the separate expense field on orders. */
+  fixedOrderMetricId: z.string().optional(),
   /** Additive: old indicators without ledger still parse. */
   ledger: z.array(MetricLedgerEntrySchema).default([]),
   updatedAt: z.string(),
@@ -126,6 +128,11 @@ export const OrderItemSchema = z.object({
   secret: z.boolean().default(false),
   military: z.boolean().default(false),
   expectation: z.string().optional(),
+  /** Keep the metric with the expense so settings changes do not move past costs. */
+  fixedExpense: z.object({
+    metricId: z.string(),
+    amount: z.number().nonnegative(),
+  }).optional(),
   /** Additive: old orders without effects still parse. */
   effects: z.array(EffectSchema).default([]),
   /** Draft metrics introduced by this order; merge into indicators on verdict commit. */

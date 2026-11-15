@@ -20,6 +20,7 @@ import {
   linkedOrderIds,
   mergeCreatedMetrics,
   normalizeMetrics,
+  orderEffects,
 } from '../schema/metrics'
 import {
   emptyOrdersTurn,
@@ -170,7 +171,7 @@ export function VerdictsPage() {
       (pack.createdMetrics ?? []).length > 0 ||
       selectedOrders.some(
         (item) =>
-          (item.effects ?? []).length > 0 ||
+          orderEffects(item).length > 0 ||
           (item.createdMetrics ?? []).length > 0,
       ))
 
@@ -223,7 +224,7 @@ export function VerdictsPage() {
 
     for (const item of orderItems) {
       const created = item.createdMetrics ?? []
-      const effects = item.effects ?? []
+      const effects = orderEffects(item)
       if (!created.length && !effects.length) continue
 
       indicators = mergeCreatedMetrics(indicators, created, {

@@ -1,7 +1,7 @@
 import { Document, HeadingLevel, Packer, Paragraph, TextRun } from 'docx'
 import type { CabinetData } from './drive'
 import { orderBodyParagraphs } from './orderBody'
-import { findMetric, formatMetricValue, isKnownMetricId, METRIC_DEFS, metricDisplayUnit, metricLabel } from '../schema/metrics'
+import { findMetric, fixedExpenseEffect, formatMetricValue, isKnownMetricId, METRIC_DEFS, metricDisplayUnit, metricLabel } from '../schema/metrics'
 import type { Effect, Metric, OrderItem } from '../schema/province'
 import { resolveResponsibleLabel } from '../schema/responsible'
 
@@ -45,6 +45,11 @@ export async function makeOrdersDocx(
     }
     children.push(...await orderBodyParagraphs(order.body, getToken))
     if (order.budget?.trim()) children.push(field('Бюджет', budgetText(order.budget)))
+    const expense = fixedExpenseEffect(order)
+    if (expense) {
+      const metrics = [...data.indicators.metrics, ...order.createdMetrics]
+      children.push(new Paragraph(effectText(expense, metrics)))
+    }
     if (order.effects.length) {
       const metrics = [...data.indicators.metrics, ...order.createdMetrics]
       children.push(new Paragraph({ children: [new TextRun({ text: 'Изменения показателей', bold: true })], keepNext: true }))

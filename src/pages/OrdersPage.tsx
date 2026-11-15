@@ -11,7 +11,13 @@ import { ResponsiblePicker } from '../components/ResponsiblePicker'
 import { RichTextEditor } from '../components/RichTextEditor'
 import { useDraftAutosave } from '../hooks/useDraftAutosave'
 import { saveAllOrdersTurns, saveResponsibleOthers } from '../lib/drive'
-import { isOrderLinked, normalizeMetrics } from '../schema/metrics'
+import {
+  isOrderLinked,
+  metricDisplayUnit,
+  metricLabel,
+  normalizeMetrics,
+  parseMetricNumber,
+} from '../schema/metrics'
 import {
   SCHEMA_VERSION,
   emptyResponsibleOthers,
@@ -145,11 +151,16 @@ export function OrdersPage() {
   const selectedIdx = rows.findIndex((row) => row.item.id === selectedId)
   const selectedRow = selectedIdx >= 0 ? rows[selectedIdx] : null
   const selected = selectedRow?.item ?? null
+  const fixedMetricId = selected?.fixedExpense?.metricId ?? data?.indicators.fixedOrderMetricId
 
   const editorMetrics = useMemo(() => {
     if (!selected) return metrics
     return normalizeMetrics([...metrics, ...(selected.createdMetrics ?? [])])
   }, [metrics, selected])
+  const fixedMetric = editorMetrics.find((m) => m.id === fixedMetricId)
+  const fixedMetricUnit = fixedMetricId
+    ? metricDisplayUnit(fixedMetric ?? { id: fixedMetricId })
+    : ''
 
   const selectedLinked =
     selected != null && data
@@ -407,6 +418,38 @@ export function OrdersPage() {
                   getAccessToken={ensureToken}
                 />
               </div>
+              {fixedMetricId ? (
+                <div className="field">
+                  <label htmlFor="order-fixed-expense">
+                    {metricLabel(editorMetrics, fixedMetricId)} — расход
+                    {fixedMetricUnit ? ` (${fixedMetricUnit})` : ''}
+                  </label>
+                  <input
+                    id="order-fixed-expense"
+                    key={`${selected.id}:${fixedMetricId}`}
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    step="any"
+                    placeholder="Не указан"
+                    value={selected.fixedExpense?.amount ?? ''}
+                    aria-describedby="order-fixed-expense-hint"
+                    onChange={(e) => {
+                      const amount = parseMetricNumber(e.target.value)
+                      updateRow(selectedIdx, {
+                        item: {
+                          fixedExpense: amount == null
+                            ? undefined
+                            : { metricId: fixedMetricId, amount: Math.abs(amount) },
+                        },
+                      })
+                    }}
+                  />
+                  <p id="order-fixed-expense-hint" className="muted field-hint">
+                    Укажите число без знака минус. Расход вычитается автоматически.
+                  </p>
+                </div>
+              ) : null}
               <EffectsEditor
                 effects={selected.effects ?? []}
                 metrics={editorMetrics}

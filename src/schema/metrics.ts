@@ -7,6 +7,7 @@ import {
   type Metric,
   type MetricLedgerEntry,
   type MetricLedgerKind,
+  type OrderItem,
   type OrdersTurn,
   type VerdictTurn,
 } from './province'
@@ -101,6 +102,24 @@ export function isVerdictLinked(verdict: VerdictTurn): boolean {
   return verdict.commits.length > 0
 }
 
+/** The fixed order expense always reduces its metric, independently of signed effects. */
+export function fixedExpenseEffect(order: OrderItem): Effect | null {
+  const expense = order.fixedExpense
+  if (!expense?.metricId || !Number.isFinite(expense.amount) || expense.amount === 0) {
+    return null
+  }
+  return {
+    id: `${order.id}_fixed_expense`,
+    metricId: expense.metricId,
+    delta: -Math.abs(expense.amount),
+  }
+}
+
+export function orderEffects(order: OrderItem): Effect[] {
+  const expense = fixedExpenseEffect(order)
+  return expense ? [expense, ...(order.effects ?? [])] : order.effects ?? []
+}
+
 /** Undo an event's ledger impact (effects + birth metrics) and drop its rows. */
 export function revertEventFromIndicators(
   indicators: Indicators,
@@ -159,7 +178,7 @@ export function sumPendingByMetric(
   for (const turn of orders) {
     for (const item of turn.items) {
       if (committed.has(item.id)) continue
-      for (const effect of item.effects ?? []) {
+      for (const effect of orderEffects(item)) {
         add(effect.metricId, effect.delta)
       }
     }
@@ -492,6 +511,9 @@ export function normalizeIndicators(indicators: Indicators): Indicators {
   return {
     ...indicators,
     metrics,
+    fixedOrderMetricId: metrics.some((m) => m.id === indicators.fixedOrderMetricId)
+      ? indicators.fixedOrderMetricId
+      : undefined,
     ledger: pruneLedgerForMetrics(indicators.ledger ?? [], metrics),
   }
 }

@@ -10,22 +10,27 @@ import { MetricEditDialog } from './MetricEditDialog'
 export function DashboardSettingsDialog({
   open,
   metrics,
+  fixedOrderMetricId,
   busy,
   message,
   onClose,
   onChangeMetrics,
+  onChangeFixedOrderMetric,
   onSave,
 }: {
   open: boolean
   metrics: Metric[]
+  fixedOrderMetricId?: string
   busy: boolean
   message: string | null
   onClose: () => void
   onChangeMetrics: (next: Metric[]) => void
+  onChangeFixedOrderMetric: (metricId: string | undefined) => void
   onSave: () => void
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const titleId = useId()
+  const fixedMetricId = useId()
   const [editOpen, setEditOpen] = useState(false)
   const [editMode, setEditMode] = useState<'create' | 'edit'>('edit')
   const [editTarget, setEditTarget] = useState<Metric | null>(null)
@@ -124,6 +129,28 @@ export function DashboardSettingsDialog({
               Закрыть
             </button>
           </header>
+
+          <div className="field">
+            <label htmlFor={fixedMetricId}>Фиксированный параметр приказов</label>
+            <select
+              id={fixedMetricId}
+              value={fixedOrderMetricId ?? ''}
+              disabled={busy}
+              onChange={(e) => onChangeFixedOrderMetric(e.target.value || undefined)}
+              aria-describedby={`${fixedMetricId}-hint`}
+            >
+              <option value="">Не выбран</option>
+              {metrics.map((metric) => (
+                <option key={metric.id} value={metric.id}>
+                  {metricLabel(metrics, metric.id)}
+                </option>
+              ))}
+            </select>
+            <p id={`${fixedMetricId}-hint`} className="muted field-hint">
+              В приказе укажите расход без знака минус — он будет вычтен автоматически.
+              Уже указанные расходы сохраняют свой показатель.
+            </p>
+          </div>
 
           <p className="muted">
             Перетащите строки или стрелки, чтобы изменить порядок на дашборде. Нажмите
