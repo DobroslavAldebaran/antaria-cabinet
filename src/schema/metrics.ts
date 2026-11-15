@@ -150,9 +150,20 @@ export function revertEventFromIndicators(
   }
 
   const keepIds = new Set(metrics.map((m) => m.id))
-  const nextLedger = ledger.filter(
-    (row) => row.eventId !== eventId && keepIds.has(row.metricId),
-  )
+  const removed = new Map<string, number>()
+  const nextLedger: MetricLedgerEntry[] = []
+  for (const row of ledger) {
+    if (row.eventId === eventId) {
+      if (!isBirthLedgerEntry(row)) {
+        removed.set(row.metricId, (removed.get(row.metricId) ?? 0) + (parseMetricNumber(row.delta) ?? 0))
+      }
+      continue
+    }
+    if (!keepIds.has(row.metricId)) continue
+    const shift = removed.get(row.metricId) ?? 0
+    const balance = parseMetricNumber(row.balanceAfter)
+    nextLedger.push(shift && balance != null ? { ...row, balanceAfter: balance - shift } : row)
+  }
 
   return {
     ...indicators,
@@ -162,7 +173,7 @@ export function revertEventFromIndicators(
   }
 }
 
-/** Sum of effects not yet committed: orders, verdict drafts, unapplied events. */
+/** Sum of uncommitted effects, including the difference for edited events. */
 export function sumPendingByMetric(
   orders: OrdersTurn[],
   verdicts: VerdictTurn[],
@@ -190,15 +201,20 @@ export function sumPendingByMetric(
     }
   }
 
-  const appliedEvents = new Set(
-    ledger
-      .map((row) => row.eventId)
-      .filter((id): id is string => Boolean(id)),
-  )
   for (const item of events) {
-    if (appliedEvents.has(item.id)) continue
+    const drafted = new Map<string, number>()
+    const applied = new Map<string, number>()
     for (const effect of item.effects ?? []) {
-      add(effect.metricId, effect.delta)
+      drafted.set(effect.metricId, (drafted.get(effect.metricId) ?? 0) + effect.delta)
+    }
+    for (const row of ledger) {
+      if (row.eventId !== item.id || isBirthLedgerEntry(row)) continue
+      const delta = parseMetricNumber(row.delta)
+      if (delta != null) applied.set(row.metricId, (applied.get(row.metricId) ?? 0) + delta)
+    }
+    // Subtract totals so unchanged fractional effects cancel exactly.
+    for (const metricId of new Set([...drafted.keys(), ...applied.keys()])) {
+      add(metricId, (drafted.get(metricId) ?? 0) - (applied.get(metricId) ?? 0))
     }
   }
 
@@ -355,6 +371,102 @@ export function applyEffectsToIndicators(
     ledger,
     updatedAt: at,
   }
+}
+
+/** Replace an event's applied deltas without applying them twice or losing metric births. */
+export function syncEventToIndicators(
+  indicators: Indicators,
+  event: CabinetEvent,
+): Indicators {
+  const title = event.title.trim() || 'Событие'
+  const at = event.at || nowIso()
+  const base = mergeCreatedMetrics(indicators, event.createdMetrics ?? [], {
+    kind: 'event', title, turn: event.turn, eventId: event.id, at,
+  })
+  const ledger = base.ledger ?? []
+  const existing = ledger.filter((row) => row.eventId === event.id && !isBirthLedgerEntry(row))
+  const desired = (event.effects ?? []).filter((effect) =>
+    Number.isFinite(effect.delta) && base.metrics.some((metric) =>
+      metric.id === effect.metricId && parseMetricNumber(metric.value) != null,
+    ),
+  )
+  const metricIds = new Set([...existing, ...desired].map((row) => row.metricId))
+  const previousByMetric = new Map<string, MetricLedgerEntry[]>()
+  const desiredByMetric = new Map<string, Effect[]>()
+  for (const metricId of metricIds) {
+    previousByMetric.set(metricId, existing.filter((row) => row.metricId === metricId))
+    desiredByMetric.set(metricId, desired.filter((effect) => effect.metricId === metricId))
+  }
+  const effectsChanged = [...metricIds].some((metricId) => {
+    const before = previousByMetric.get(metricId)!
+    const after = desiredByMetric.get(metricId)!
+    return before.length !== after.length || after.some((effect, idx) =>
+      parseMetricNumber(before[idx]?.delta) !== effect.delta ||
+      (before[idx]?.note ?? '') !== (effect.note ?? ''),
+    )
+  })
+  const updateMeta = (row: MetricLedgerEntry): MetricLedgerEntry =>
+    row.eventId === event.id && (row.title !== title || row.turn !== event.turn)
+      ? { ...row, title, turn: event.turn }
+      : row
+  if (!effectsChanged) {
+    const nextLedger = ledger.map(updateMeta)
+    return nextLedger.some((row, idx) => row !== ledger[idx])
+      ? { ...base, ledger: nextLedger, updatedAt: nowIso() }
+      : base
+  }
+
+  const nextLedger: MetricLedgerEntry[] = []
+  const shifts = new Map<string, number>()
+  const inserted = new Set<string>()
+  const total = (rows: (Effect | MetricLedgerEntry)[]) =>
+    rows.reduce((sum, row) => sum + (parseMetricNumber(row.delta) ?? 0), 0)
+  const appendEffects = (metricId: string, balanceBefore: number) => {
+    let balance = balanceBefore
+    const previous = previousByMetric.get(metricId) ?? []
+    for (const [idx, effect] of (desiredByMetric.get(metricId) ?? []).entries()) {
+      balance += effect.delta
+      nextLedger.push({
+        id: previous[idx]?.id ?? newId('led'),
+        metricId, kind: 'event', title, turn: event.turn, eventId: event.id,
+        delta: effect.delta, balanceAfter: balance, note: effect.note,
+        at: previous[idx]?.at ?? at,
+      })
+    }
+    inserted.add(metricId)
+  }
+
+  for (const [idx, row] of ledger.entries()) {
+    if (row.eventId === event.id && !isBirthLedgerEntry(row)) {
+      if (!inserted.has(row.metricId)) {
+        const balance = parseMetricNumber(row.balanceAfter)
+        // Legacy rows may have no balanceAfter; recover it from the current value.
+        const before = balance != null
+          ? balance - (parseMetricNumber(row.delta) ?? 0)
+          : parseMetricNumber(base.metrics.find((metric) => metric.id === row.metricId)?.value)! -
+            total(ledger.slice(idx).filter((entry) => entry.metricId === row.metricId && !isBirthLedgerEntry(entry)))
+        appendEffects(row.metricId, before)
+        shifts.set(row.metricId, total(desiredByMetric.get(row.metricId) ?? []))
+      }
+      shifts.set(row.metricId, (shifts.get(row.metricId) ?? 0) - (parseMetricNumber(row.delta) ?? 0))
+      continue
+    }
+    const shift = shifts.get(row.metricId) ?? 0
+    const balance = parseMetricNumber(row.balanceAfter)
+    // Keep later history consistent with the event's replacement at its original position.
+    nextLedger.push(updateMeta(shift && balance != null ? { ...row, balanceAfter: balance + shift } : row))
+  }
+  for (const [metricId, effects] of desiredByMetric) {
+    if (inserted.has(metricId) || !effects.length) continue
+    appendEffects(metricId, parseMetricNumber(base.metrics.find((metric) => metric.id === metricId)?.value)!)
+  }
+  const metrics = base.metrics.map((metric) => {
+    if (!metricIds.has(metric.id)) return metric
+    const difference = total(desiredByMetric.get(metric.id) ?? []) - total(previousByMetric.get(metric.id) ?? [])
+    const current = parseMetricNumber(metric.value)
+    return difference && current != null ? { ...metric, value: current + difference } : metric
+  })
+  return { ...base, metrics, ledger: nextLedger, updatedAt: nowIso() }
 }
 
 /** Record a manual value change when the numeric balance actually moves. */

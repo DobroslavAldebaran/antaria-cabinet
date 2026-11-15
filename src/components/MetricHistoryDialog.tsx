@@ -148,7 +148,7 @@ export function MetricHistoryDialog({
                   {row.eventId ? (
                     <Link
                       className="btn btn-ghost"
-                      to={`/app/events?id=${row.eventId}`}
+                      to={`/app/events?id=${encodeURIComponent(row.eventId)}`}
                       onClick={onClose}
                     >
                       К событию

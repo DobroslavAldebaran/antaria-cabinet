@@ -21,6 +21,13 @@ Vite + React + TypeScript, HashRouter, Firebase, Google Drive API, zod.
 
 Откройте `http://localhost:5173/antaria-cabinet/`.
 
+Проверки: `npm test` (Node.js 24+), `npm run lint`, `npm run build`.
+
+В событиях автосохранение записывает черновик. Кнопка «Сохранить» применяет
+его изменения к показателям и истории. При правке уже применённого события
+бюджет корректируется на разницу между прежними и новыми дельтами;
+повторное сохранение без правок ничего не списывает повторно.
+
 ## Google Cloud / Firebase (один раз)
 
 1. Создайте Firebase project, включите **Authentication → Google**.

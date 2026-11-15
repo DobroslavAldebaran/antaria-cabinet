@@ -10,10 +10,9 @@ import { RichTextEditor } from '../components/RichTextEditor'
 import { useDraftAutosave } from '../hooks/useDraftAutosave'
 import { saveEvents, saveIndicators } from '../lib/drive'
 import {
-  applyEffectsToIndicators,
-  mergeCreatedMetrics,
   normalizeMetrics,
   revertEventFromIndicators,
+  syncEventToIndicators,
 } from '../schema/metrics'
 import {
   emptyEvents,
@@ -31,10 +30,11 @@ function stripUpdatedAt(doc: EventsDoc): string {
 
 export function EventsPage() {
   const { binding, data, setData, ensureToken, busy } = useCabinet()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [msg, setMsg] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const savingRef = useRef(false)
   const [savedIds, setSavedIds] = useState<Set<string>>(() => new Set())
   const seededFolder = useRef<string | null>(null)
 
@@ -43,11 +43,15 @@ export function EventsPage() {
     [data?.events],
   )
   const items = events.items
-
-  useEffect(() => {
-    const q = searchParams.get('id')
-    if (q) setSelectedId(q)
-  }, [searchParams])
+  const selectedId = searchParams.get('id') ?? items[0]?.id ?? null
+  const setSelectedId = (id: string | null) => {
+    setSearchParams((previous) => {
+      const next = new URLSearchParams(previous)
+      if (id) next.set('id', id)
+      else next.delete('id')
+      return next
+    }, { replace: true })
+  }
 
   useEffect(() => {
     if (!binding || !data?.events) return
@@ -55,15 +59,6 @@ export function EventsPage() {
     seededFolder.current = binding.folderId
     setSavedIds(new Set(data.events.items.map((i) => i.id)))
   }, [binding, data])
-
-  useEffect(() => {
-    if (!items.length) {
-      setSelectedId(null)
-      return
-    }
-    if (selectedId && items.some((i) => i.id === selectedId)) return
-    setSelectedId(items[0]?.id ?? null)
-  }, [items, selectedId])
 
   const metrics = useMemo(
     () => normalizeMetrics(data?.indicators.metrics ?? []),
@@ -93,7 +88,7 @@ export function EventsPage() {
   const { phase, markSaved, valueRef } = useDraftAutosave({
     value: events,
     resetKey: binding?.folderId ?? '',
-    enabled: Boolean(binding && data?.events),
+    enabled: Boolean(binding && data?.events) && !saving,
     onSave: async (current) => {
       if (!binding) return
       setErr(null)
@@ -159,7 +154,9 @@ export function EventsPage() {
   }
 
   const deleteSelected = async () => {
-    if (!selected) return
+    if (!selected || savingRef.current) return
+    savingRef.current = true
+    setSaving(true)
     setErr(null)
     setMsg(null)
     try {
@@ -177,7 +174,10 @@ export function EventsPage() {
         await saveIndicators(token, binding.folderId, indicators)
       }
       await saveEvents(token, binding.folderId, nextEvents)
-      setData({ ...data, indicators, events: nextEvents })
+      const latestEvents = stripUpdatedAt(valueRef.current) === stripUpdatedAt(events)
+        ? nextEvents
+        : { ...valueRef.current, items: valueRef.current.items.filter((item) => item.id !== selected.id) }
+      setData({ ...data, indicators, events: latestEvents })
       markPersisted(nextEvents)
       markSaved(nextEvents, 'manual')
       setSelectedId(nextEvents.items[0]?.id ?? null)
@@ -188,10 +188,14 @@ export function EventsPage() {
       )
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Ошибка удаления')
+    } finally {
+      savingRef.current = false
+      setSaving(false)
     }
   }
 
   const save = async () => {
+    if (savingRef.current) return
     setErr(null)
     setMsg(null)
     const missingTurn = events.items.find(
@@ -203,42 +207,13 @@ export function EventsPage() {
       return
     }
 
+    savingRef.current = true
+    setSaving(true)
     try {
       const token = await ensureToken()
       let indicators = data.indicators
-      const alreadyApplied = new Set(
-        (indicators.ledger ?? [])
-          .map((row) => row.eventId)
-          .filter((id): id is string => Boolean(id)),
-      )
-
       for (const item of events.items) {
-        const created = item.createdMetrics ?? []
-        const effects = item.effects ?? []
-        if (!created.length && !effects.length) continue
-
-        const at = item.at || nowIso()
-        // Idempotent by metric id — safe on re-save after event already hit ledger.
-        indicators = mergeCreatedMetrics(indicators, created, {
-          kind: 'event',
-          title: item.title?.trim() || 'Событие',
-          turn: item.turn,
-          eventId: item.id,
-          at,
-        })
-
-        if (alreadyApplied.has(item.id)) continue
-
-        if (effects.length) {
-          indicators = applyEffectsToIndicators(indicators, effects, {
-            kind: 'event',
-            title: item.title || 'Событие',
-            turn: item.turn,
-            eventId: item.id,
-            at,
-          })
-        }
-        alreadyApplied.add(item.id)
+        indicators = syncEventToIndicators(indicators, item)
       }
 
       const nextEvents = { ...events, updatedAt: nowIso() }
@@ -246,18 +221,24 @@ export function EventsPage() {
         await saveIndicators(token, binding.folderId, indicators)
       }
       await saveEvents(token, binding.folderId, nextEvents)
-      setData({ ...data, indicators, events: nextEvents })
+      const latestEvents = stripUpdatedAt(valueRef.current) === stripUpdatedAt(events)
+        ? nextEvents
+        : valueRef.current
+      setData({ ...data, indicators, events: latestEvents })
       markPersisted(nextEvents)
       markSaved(nextEvents, 'manual')
       setMsg('События сохранены')
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Ошибка сохранения')
+    } finally {
+      savingRef.current = false
+      setSaving(false)
     }
   }
 
-  const saveBusy = busy || phase === 'saving'
+  const saveBusy = busy || saving || phase === 'saving'
   const saveLabel =
-    phase === 'saving'
+    saving || phase === 'saving'
       ? 'Сохранение…'
       : phase === 'saved'
         ? 'Сохранено'
@@ -268,10 +249,10 @@ export function EventsPage() {
       <div className="panel">
         <h2>События</h2>
         <p className="muted">
-          Изменения показателей применяются сразу при первом сохранении события с
-          дельтами или новыми показателями. Ход обязателен. Удаление откатывает
-          уже применённые эффекты этого события. Черновик пишется на Drive без
-          применения дельт.
+          Кнопка «Сохранить» применяет изменения показателей и обновляет историю,
+          в том числе после правки уже сохранённых событий. Ход обязателен.
+          Удаление откатывает применённые изменения события. Автосохранение
+          сохраняет только черновик, без изменения показателей и истории.
         </p>
 
         <MasterDetailList
@@ -297,7 +278,7 @@ export function EventsPage() {
           }}
         >
           {selected && selectedIdx >= 0 ? (
-            <div className="stack">
+            <div className="stack" key={selected.id}>
               <div className="field">
                 <label>Заголовок</label>
                 <input
@@ -340,12 +321,19 @@ export function EventsPage() {
                 metrics={editorMetrics}
                 onCreateMetric={addCreatedMetric}
                 onChange={(effects) => updateItem(selectedIdx, { effects })}
+                disabled={busy || saving}
               />
+              {(data.indicators.ledger ?? []).some((row) => row.eventId === selected.id) ? (
+                <p className="muted">
+                  В истории показаны применённые изменения. Чтобы применить правки
+                  черновика к показателям и истории, нажмите «Сохранить».
+                </p>
+              ) : null}
               <div className="btn-row">
                 <button
                   type="button"
                   className="btn btn-ghost"
-                  disabled={busy}
+                  disabled={saveBusy}
                   onClick={() => void deleteSelected()}
                 >
                   Удалить
@@ -353,7 +341,7 @@ export function EventsPage() {
                 <button
                   type="button"
                   className="btn btn-ghost"
-                  disabled={!canClearSelected}
+                  disabled={saveBusy || !canClearSelected}
                   title={
                     canClearSelected
                       ? 'Убрать ещё не сохранённое событие'
@@ -366,7 +354,11 @@ export function EventsPage() {
               </div>
             </div>
           ) : (
-            <p className="muted">Выберите событие слева или создайте новое.</p>
+            <p className="muted">
+              {selectedId
+                ? 'Событие по ссылке не найдено. Выберите событие слева.'
+                : 'Выберите событие слева или создайте новое.'}
+            </p>
           )}
         </MasterDetailList>
 
