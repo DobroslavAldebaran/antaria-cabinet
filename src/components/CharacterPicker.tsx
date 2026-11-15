@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { Character } from '../schema/province'
 import { CharactersDialog } from './CharactersDialog'
+import { CharacterAvatar } from './CharacterAvatar'
 
 function matchesQuery(character: Character, query: string): boolean {
   if (!query) return true
@@ -83,15 +84,11 @@ export function CharacterPicker({
           }}
         >
           <span className="entity-picker-trigger-main">
-            {selected?.avatarUrl ? (
-              <img
-                className="entity-picker-avatar"
-                src={selected.avatarUrl}
-                alt=""
-              />
-            ) : (
-              <span className="entity-picker-avatar is-empty" aria-hidden />
-            )}
+            <CharacterAvatar
+              className="entity-picker-avatar"
+              avatarUrl={selected?.avatarUrl}
+              avatarFileId={selected?.avatarFileId}
+            />
             <span
               className={
                 missing ? 'entity-picker-label muted' : 'entity-picker-label'
@@ -163,18 +160,11 @@ export function CharacterPicker({
                           setOpen(false)
                         }}
                       >
-                        {c.avatarUrl ? (
-                          <img
-                            className="entity-picker-avatar"
-                            src={c.avatarUrl}
-                            alt=""
-                          />
-                        ) : (
-                          <span
-                            className="entity-picker-avatar is-empty"
-                            aria-hidden
-                          />
-                        )}
+                        <CharacterAvatar
+                          className="entity-picker-avatar"
+                          avatarUrl={c.avatarUrl}
+                          avatarFileId={c.avatarFileId}
+                        />
                         <span className="master-detail-text">
                           <span className="master-detail-label">{name}</span>
                           {caption ? (

@@ -8,6 +8,7 @@ import {
 import { MasterDetailList } from '../components/MasterDetailList'
 import { RichTextEditor } from '../components/RichTextEditor'
 import { useDraftAutosave } from '../hooks/useDraftAutosave'
+import { DraftSaveError } from '../components/DraftSaveError'
 import {
   deleteVerdictTurn,
   saveIndicators,
@@ -123,7 +124,7 @@ export function VerdictsPage() {
     setSavedTurns((prev) => new Set([...prev, next.turn]))
   }
 
-  const { phase, markSaved, valueRef } = useDraftAutosave({
+  const { phase, markSaved, valueRef, saveError, retryAutosave } = useDraftAutosave({
     value: pack,
     resetKey: `${binding?.folderId ?? ''}:${currentTurn}`,
     enabled: Boolean(binding && data),
@@ -511,7 +512,7 @@ export function VerdictsPage() {
               </button>
             </div>
             <div role="status" aria-live="polite">
-              {msg ? <p className="ok">{msg}</p> : null}
+              {msg && !saveError ? <p className="ok">{msg}</p> : null}
               {phase === 'draft' && !msg ? (
                 <p className="ok">Черновик сохранён</p>
               ) : null}
@@ -519,6 +520,7 @@ export function VerdictsPage() {
                 <p className="muted">Сохранение…</p>
               ) : null}
             </div>
+            <DraftSaveError error={saveError} onRetry={retryAutosave} />
             {err ? <p className="error">{err}</p> : null}
 
             {pack.commits.length > 0 ? (

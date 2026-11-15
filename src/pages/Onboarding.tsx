@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import { useAuth } from '../auth/AuthProvider'
 import { useCabinet } from '../cabinet/CabinetProvider'
 
 export function Onboarding() {
-  const { createFolder, bindFolder, busy, error, ensureToken } = useCabinet()
+  const { createFolder, bindFolder, busy, error } = useCabinet()
+  const { refreshDriveToken, driveRefreshing } = useAuth()
   const [folderId, setFolderId] = useState('')
   const [folderName, setFolderName] = useState('Antaria Cabinet')
   const [localError, setLocalError] = useState<string | null>(null)
@@ -31,14 +33,14 @@ export function Onboarding() {
           <button
             type="button"
             className="btn"
-            disabled={busy}
+            disabled={busy || driveRefreshing}
             onClick={() =>
-              void ensureToken().catch((e: unknown) =>
+              void refreshDriveToken().then(() => setLocalError(null)).catch((e: unknown) =>
                 setLocalError(e instanceof Error ? e.message : 'Нет токена Drive'),
               )
             }
           >
-            Обновить токен Drive
+            {driveRefreshing ? 'Обновление доступа…' : 'Обновить доступ к Drive'}
           </button>
         </div>
         <div className="stack" style={{ marginTop: '1.25rem' }}>

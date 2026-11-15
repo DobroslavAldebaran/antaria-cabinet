@@ -19,6 +19,7 @@ export type ResponsibleOption =
       caption: string
       depth: number
       avatarUrl?: string
+      avatarFileId?: string
     }
   | {
       kind: 'other'
@@ -86,6 +87,7 @@ export function buildResponsibleOptions(
           caption: manager.caption?.trim() ?? '',
           depth: node.depth,
           avatarUrl: manager.avatarUrl,
+          avatarFileId: manager.avatarFileId,
         })
       }
     }
@@ -106,6 +108,7 @@ export function buildResponsibleOptions(
         caption: c.caption?.trim() ?? '',
         depth: 0,
         avatarUrl: c.avatarUrl,
+        avatarFileId: c.avatarFileId,
       })
     }
   }

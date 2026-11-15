@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
@@ -46,17 +47,14 @@ type CabinetContextValue = {
 const CabinetContext = createContext<CabinetContextValue | null>(null)
 
 export function CabinetProvider({ children }: { children: ReactNode }) {
-  const { user, accessToken, refreshDriveToken, profile } = useAuth()
+  const { user, accessToken, ensureDriveToken, profile } = useAuth()
   const [binding, setBinding] = useState<FolderBinding | null>(null)
   const [data, setData] = useState<CabinetData | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loadedUid, setLoadedUid] = useState<string | null>(null)
-
-  const ensureToken = useCallback(async () => {
-    if (accessToken) return accessToken
-    return refreshDriveToken()
-  }, [accessToken, refreshDriveToken])
+  const loadToken = useRef<string | null>(null)
+  const ensureToken = ensureDriveToken
 
   const reload = useCallback(async () => {
     if (!user) return
@@ -84,12 +82,24 @@ export function CabinetProvider({ children }: { children: ReactNode }) {
       setBinding(null)
       setData(null)
       setLoadedUid(null)
+      loadToken.current = null
       return
     }
     if (loadedUid === user.uid) return
     setLoadedUid(user.uid)
+    loadToken.current = accessToken
     void reload()
-  }, [user, profile?.status, loadedUid, reload])
+  }, [user, profile?.status, loadedUid, reload, accessToken])
+
+  useEffect(() => {
+    // A restored Firebase session has no Google provider token after a reload.
+    // Once access is explicitly renewed, retry a failed initial load exactly once.
+    // Never reload an open cabinet when renewing: editors may contain changes.
+    if (!accessToken || !user || profile?.status !== 'approved' || data || busy) return
+    if (loadToken.current === accessToken) return
+    loadToken.current = accessToken
+    void reload()
+  }, [accessToken, user, profile?.status, data, busy, reload])
 
   const createFolder = useCallback(async () => {
     if (!user) return

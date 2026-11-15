@@ -2,7 +2,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
 
 export function Layout() {
-  const { profile, signOut, user } = useAuth()
+  const { profile, signOut, user, accessToken, refreshDriveToken, driveRefreshing, error } = useAuth()
   const approved = profile?.status === 'approved'
   const isAdmin = profile?.role === 'admin'
 
@@ -56,6 +56,20 @@ export function Layout() {
           )}
         </div>
       </header>
+      {approved && !accessToken ? (
+        <div className="page" role="alert">
+          <p className="error">Доступ к Google Drive истёк или не подключён. Для сохранения на Drive обновите доступ.</p>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={driveRefreshing}
+            onClick={() => void refreshDriveToken().catch(() => {})}
+          >
+            {driveRefreshing ? 'Обновление доступа…' : 'Обновить доступ к Drive'}
+          </button>
+          {error ? <p className="error">{error}</p> : null}
+        </div>
+      ) : null}
       <Outlet />
     </div>
   )

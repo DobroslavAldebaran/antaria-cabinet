@@ -47,10 +47,17 @@ function ExportDialog({ title, rows, data, getToken, onClose }: ExportProps & {
 }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const heading = useId()
+  const turnField = useId()
+  const turns = [...new Set(rows.map(({ turn }) => turn))].sort((a, b) => b - a)
+  const [turn, setTurn] = useState(() => String(
+    turns.includes(data.meta.currentTurn) ? data.meta.currentTurn : turns[0] ?? 'all',
+  ))
+  const activeTurn = turn === 'all' || turns.includes(Number(turn)) ? turn : String(turns[0] ?? 'all')
+  const visibleRows = activeTurn === 'all' ? rows : rows.filter(({ turn }) => turn === Number(activeTurn))
   const [selected, setSelected] = useState(() => new Set(rows.map(({ item }) => item.id)))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const chosen = rows.filter(({ item }) => selected.has(item.id))
+  const chosen = visibleRows.filter(({ item }) => selected.has(item.id))
 
   useEffect(() => { dialog.current?.showModal() }, [])
 
@@ -87,16 +94,31 @@ function ExportDialog({ title, rows, data, getToken, onClose }: ExportProps & {
           <button type="button" className="btn btn-ghost" disabled={busy}
             onClick={() => dialog.current?.close()}>Закрыть</button>
         </header>
-        {rows.length > 1 && (
+        <div className="field">
+          <label htmlFor={turnField}>Ход</label>
+          <select id={turnField} value={activeTurn} disabled={busy}
+            onChange={(e) => { setTurn(e.target.value); setError('') }}>
+            {turns.map((turn) => <option key={turn} value={String(turn)}>Ход {turn}</option>)}
+            <option value="all">Все ходы</option>
+          </select>
+        </div>
+        {visibleRows.length > 1 && (
           <div>
             <button type="button" className="btn btn-ghost" disabled={busy}
-              onClick={() => setSelected(chosen.length === rows.length ? new Set() : new Set(rows.map(({ item }) => item.id)))}>
-              {chosen.length === rows.length ? 'Снять все отметки' : 'Выбрать все'}
+              onClick={() => setSelected((previous) => {
+                const next = new Set(previous)
+                for (const { item } of visibleRows) {
+                  if (chosen.length === visibleRows.length) next.delete(item.id)
+                  else next.add(item.id)
+                }
+                return next
+              })}>
+              {chosen.length === visibleRows.length ? 'Снять все отметки' : 'Выбрать все'}
             </button>
           </div>
         )}
         <div className="order-export-list" role="group" aria-label="Приказы для экспорта">
-          {rows.map(({ item, turn }) => (
+          {visibleRows.map(({ item, turn }) => (
             <label key={item.id}>
               <input type="checkbox" checked={selected.has(item.id)} disabled={busy}
                 onChange={(e) => {
@@ -110,6 +132,7 @@ function ExportDialog({ title, rows, data, getToken, onClose }: ExportProps & {
             </label>
           ))}
         </div>
+        {!visibleRows.length && <p className="muted">Нет приказов за выбранный ход.</p>}
         <div className="btn-row">
           <button type="button" className="btn btn-primary" disabled={busy || !chosen.length}
             onClick={() => void download('docx')}>Скачать Word</button>

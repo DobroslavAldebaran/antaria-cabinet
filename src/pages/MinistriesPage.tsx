@@ -5,6 +5,7 @@ import { CharacterPicker } from '../components/CharacterPicker'
 import { MasterDetailList } from '../components/MasterDetailList'
 import { MinistryParentPicker } from '../components/MinistryParentPicker'
 import { useDraftAutosave } from '../hooks/useDraftAutosave'
+import { DraftSaveError } from '../components/DraftSaveError'
 import { saveMinistries } from '../lib/drive'
 import {
   flattenMinistryTree,
@@ -86,7 +87,7 @@ export function MinistriesPage() {
     setSavedIds(new Set(next.items.map((i) => i.id)))
   }
 
-  const { phase, markSaved, valueRef } = useDraftAutosave({
+  const { phase, markSaved, valueRef, saveError, retryAutosave } = useDraftAutosave({
     value: ministries,
     resetKey: binding?.folderId ?? '',
     enabled: Boolean(binding && data?.ministries),
@@ -324,7 +325,7 @@ export function MinistriesPage() {
           </button>
         </div>
         <div role="status" aria-live="polite">
-          {msg ? <p className="ok">{msg}</p> : null}
+          {msg && !saveError ? <p className="ok">{msg}</p> : null}
           {phase === 'draft' && !msg ? (
             <p className="ok">Черновик сохранён</p>
           ) : null}
@@ -332,6 +333,7 @@ export function MinistriesPage() {
             <p className="muted">Сохранение…</p>
           ) : null}
         </div>
+        <DraftSaveError error={saveError} onRetry={retryAutosave} />
         {err ? <p className="error">{err}</p> : null}
       </div>
     </div>

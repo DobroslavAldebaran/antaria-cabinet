@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { useAuth } from '../auth/AuthProvider'
 import { useCabinet } from '../cabinet/CabinetProvider'
 import {
   EffectsEditor,
@@ -11,6 +12,13 @@ import { ResponsiblePicker } from '../components/ResponsiblePicker'
 import { RichTextEditor } from '../components/RichTextEditor'
 import { useDraftAutosave } from '../hooks/useDraftAutosave'
 import { saveAllOrdersTurns, saveResponsibleOthers } from '../lib/drive'
+import {
+  acknowledgeOrdersDraft,
+  readOrdersDraft,
+  trackOrdersDraftTurns,
+  writeOrdersDraft,
+  type OrdersDraftValue,
+} from '../lib/ordersDraftStorage'
 import {
   isOrderLinked,
   metricDisplayUnit,
@@ -31,10 +39,6 @@ import {
 import { Onboarding } from './Onboarding'
 
 type OrderRow = { turn: number; item: OrderItem }
-
-function stripOrdersUpdatedAt(orders: OrdersTurn[]): string {
-  return JSON.stringify(orders.map((o) => ({ ...o, updatedAt: '' })))
-}
 
 function flattenOrders(orders: OrdersTurn[]): OrderRow[] {
   return orders
@@ -79,47 +83,33 @@ function parseTurnValue(raw: string): number {
 
 export function OrdersPage() {
   const { binding, data, setData, ensureToken, busy } = useCabinet()
+  const { user } = useAuth()
   const [searchParams] = useSearchParams()
   const [msg, setMsg] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  const [localError, setLocalError] = useState<string | null>(null)
+  const [localDraft, setLocalDraft] = useState(false)
+  const [manualSaving, setManualSaving] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [savedIds, setSavedIds] = useState<Set<string>>(() => new Set())
-  const [persistedTurns, setPersistedTurns] = useState<number[]>([])
   const seededFolder = useRef<string | null>(null)
   const turnQueryHandled = useRef<string | null>(null)
   const persistedTurnsRef = useRef<number[]>([])
-  const othersDirtyRef = useRef(false)
   const othersRef = useRef<ResponsibleOthersDoc>(emptyResponsibleOthers())
 
-  const orders = data?.orders ?? []
+  const orders = useMemo(() => data?.orders ?? [], [data?.orders])
   const rows = useMemo(() => flattenOrders(orders), [orders])
   const items = useMemo(() => rows.map((row) => row.item), [rows])
-  const responsibleOthers =
-    data?.responsibleOthers ?? emptyResponsibleOthers()
+  const responsibleOthers = useMemo(
+    () => data?.responsibleOthers ?? emptyResponsibleOthers(), [data?.responsibleOthers],
+  )
+  const draftValue = useMemo(() => ({ orders, responsibleOthers }), [orders, responsibleOthers])
 
   const defaultTurn = data?.meta.currentTurn ?? 0
 
   useEffect(() => {
-    persistedTurnsRef.current = persistedTurns
-  }, [persistedTurns])
-
-  useEffect(() => {
     othersRef.current = responsibleOthers
   }, [responsibleOthers])
-
-  useEffect(() => {
-    if (!binding || !data) return
-    if (seededFolder.current === binding.folderId) return
-    seededFolder.current = binding.folderId
-    setSavedIds(
-      new Set(data.orders.flatMap((pack) => pack.items.map((i) => i.id))),
-    )
-    const turns = data.orders.map((pack) => pack.turn)
-    setPersistedTurns(turns)
-    persistedTurnsRef.current = turns
-    othersDirtyRef.current = false
-    othersRef.current = data.responsibleOthers ?? emptyResponsibleOthers()
-  }, [binding, data])
 
   useEffect(() => {
     const q = searchParams.get('turn')
@@ -170,9 +160,23 @@ export function OrdersPage() {
   const canClearSelected =
     Boolean(selected) && selected != null && !savedIds.has(selected.id)
 
+  const recordLocalDraft = (value: OrdersDraftValue) => {
+    if (!user || !binding) return
+    setMsg(null)
+    try {
+      // Write immediately on every edit, before waiting for Drive or its token.
+      writeOrdersDraft(user.uid, binding.folderId, value, persistedTurnsRef.current)
+      setLocalDraft(true)
+      setLocalError(null)
+    } catch {
+      setLocalError('Не удалось сохранить копию в браузере. Не закрывайте страницу до сохранения на Drive.')
+    }
+  }
+
   const setOrders = (next: OrdersTurn[]) => {
     if (!data) return
-    setData({ ...data, orders: next })
+    recordLocalDraft({ orders: next, responsibleOthers: othersRef.current })
+    setData({ ...data, orders: next, responsibleOthers: othersRef.current })
   }
 
   const setRows = (nextRows: OrderRow[]) => {
@@ -184,52 +188,95 @@ export function OrdersPage() {
       new Set(next.flatMap((pack) => pack.items.map((i) => i.id))),
     )
     const turns = next.map((pack) => pack.turn)
-    setPersistedTurns(turns)
     persistedTurnsRef.current = turns
   }
 
-  const persist = async (current: OrdersTurn[]) => {
-    if (!binding) return
+  const persist = async (current: OrdersDraftValue) => {
+    if (!binding || !user) return
+    const scope = `${user.uid}:${binding.folderId}`
     const token = await ensureToken()
-    const stamped = current.map((pack) => ({
+    if (seededFolder.current !== scope) return
+    let recoveryCopy: OrdersDraftValue | undefined
+    try {
+      recoveryCopy = readOrdersDraft(user.uid, binding.folderId)?.value
+    } catch {
+      // Drive can still save when browser storage is unavailable.
+    }
+    const stamped = current.orders.map((pack) => ({
       ...pack,
       updatedAt: nowIso(),
     }))
+    // A multi-file Drive write can fail after creating only some of its turns.
+    // Retain all possible remote turns so later deletions can still remove them.
+    persistedTurnsRef.current = [...new Set([...persistedTurnsRef.current, ...stamped.map((pack) => pack.turn)])]
+    try {
+      trackOrdersDraftTurns(user.uid, binding.folderId, persistedTurnsRef.current)
+    } catch {
+      setLocalError('Не удалось обновить копию в браузере. Не закрывайте страницу до сохранения на Drive.')
+    }
     await saveAllOrdersTurns(
       token,
       binding.folderId,
       stamped,
       persistedTurnsRef.current,
     )
-    if (othersDirtyRef.current) {
-      const others = {
-        ...othersRef.current,
-        updatedAt: nowIso(),
+    const others = { ...current.responsibleOthers, updatedAt: nowIso() }
+    await saveResponsibleOthers(token, binding.folderId, others)
+    try {
+      acknowledgeOrdersDraft(user.uid, binding.folderId, current, stamped.map((pack) => pack.turn),
+        seededFolder.current === scope && valueRef.current === current ? recoveryCopy : undefined)
+      if (seededFolder.current === scope) {
+        setLocalDraft(Boolean(readOrdersDraft(user.uid, binding.folderId)))
+        setLocalError(null)
       }
-      await saveResponsibleOthers(token, binding.folderId, others)
-      othersRef.current = others
-      othersDirtyRef.current = false
+    } catch {
+      if (seededFolder.current === scope) setLocalError('Приказы записаны на Drive, но не удалось обновить локальную копию.')
     }
-    return stamped
+    if (seededFolder.current === scope) return { orders: stamped, responsibleOthers: others }
   }
 
-  const { phase, markSaved, valueRef } = useDraftAutosave({
-    value: orders,
-    resetKey: binding?.folderId ?? '',
-    enabled: Boolean(binding && data),
+  const { dirty, phase, markSaved, markDirty, valueRef, saveError, retryAutosave } = useDraftAutosave({
+    value: draftValue,
+    resetKey: `${user?.uid ?? ''}:${binding?.folderId ?? ''}`,
+    enabled: Boolean(binding && data) && !manualSaving,
     onSave: async (current) => {
       if (!binding) return
       setErr(null)
       const stamped = await persist(current)
       if (!stamped) return
-      markPersisted(stamped)
-      if (stripOrdersUpdatedAt(valueRef.current) === stripOrdersUpdatedAt(current)) {
-        setOrders(stamped)
-        markSaved(stamped, 'draft')
+      markPersisted(stamped.orders)
+      markSaved(current, 'draft')
+      if (valueRef.current === current) {
+        setMsg('Черновик сохранён на Drive')
       }
-      setMsg('Черновик сохранён')
     },
   })
+
+  useEffect(() => {
+    if (!binding || !data || !user) return
+    const scope = `${user.uid}:${binding.folderId}`
+    if (seededFolder.current === scope) return
+    seededFolder.current = scope
+    setSavedIds(new Set(data.orders.flatMap((pack) => pack.items.map((i) => i.id))))
+    const turns = data.orders.map((pack) => pack.turn)
+    persistedTurnsRef.current = turns
+    othersRef.current = data.responsibleOthers ?? emptyResponsibleOthers()
+    setLocalDraft(false)
+    setLocalError(null)
+    try {
+      const draft = readOrdersDraft(user.uid, binding.folderId)
+      if (draft) {
+        persistedTurnsRef.current = [...new Set([...turns, ...draft.persistedTurns])]
+        othersRef.current = draft.value.responsibleOthers
+        setData({ ...data, ...draft.value })
+        markDirty()
+        setLocalDraft(true)
+        setMsg('Восстановлен черновик приказов из этого браузера')
+      }
+    } catch {
+      setLocalError('Не удалось прочитать локальный черновик. Не закрывайте страницу до сохранения на Drive.')
+    }
+  }, [binding, data, user, setData, markDirty])
 
   if (!binding || !data) return <Onboarding />
 
@@ -304,23 +351,30 @@ export function OrdersPage() {
   }
 
   const save = async () => {
+    if (manualSaving || phase === 'saving') return
+    setManualSaving(true)
     setErr(null)
     setMsg(null)
     try {
-      const stamped = await persist(orders)
+      const current = draftValue
+      const stamped = await persist(current)
       if (!stamped) return
-      setOrders(stamped)
-      markPersisted(stamped)
-      markSaved(stamped, 'manual')
-      setMsg('Приказы сохранены')
+      markPersisted(stamped.orders)
+      markSaved(current, 'manual')
+      if (valueRef.current === current) {
+        setMsg('Приказы сохранены на Drive')
+      }
     } catch (e) {
+      markDirty()
       setErr(e instanceof Error ? e.message : 'Ошибка сохранения')
+    } finally {
+      setManualSaving(false)
     }
   }
 
-  const saveBusy = busy || phase === 'saving'
+  const saveBusy = busy || phase === 'saving' || manualSaving
   const saveLabel =
-    phase === 'saving'
+    phase === 'saving' || manualSaving
       ? 'Сохранение…'
       : phase === 'saved'
         ? 'Сохранено'
@@ -346,10 +400,19 @@ export function OrdersPage() {
           renderItemLabel={(id) => {
             const row = rows.find((x) => x.item.id === id)
             const title = row?.item.title?.trim() || 'Без названия'
+            const caption = [
+              row?.item.secret && 'Тайный',
+              row?.item.military && 'Военный',
+            ].filter(Boolean).join(' · ')
             return (
               <>
                 <span className="master-detail-turn">{row?.turn ?? '?'}</span>
-                <span className="master-detail-label">{title}</span>
+                <span className="master-detail-text">
+                  <span className="master-detail-label">{title}</span>
+                  {caption ? (
+                    <span className="master-detail-caption muted">{caption}</span>
+                  ) : null}
+                </span>
               </>
             )
           }}
@@ -404,7 +467,7 @@ export function OrdersPage() {
                   }
                   onOthersChange={(next) => {
                     othersRef.current = next
-                    othersDirtyRef.current = true
+                    recordLocalDraft({ orders, responsibleOthers: next })
                     setData({ ...data, responsibleOthers: next })
                   }}
                 />
@@ -530,14 +593,26 @@ export function OrdersPage() {
           </button>
         </div>
         <div role="status" aria-live="polite">
-          {msg ? <p className="ok">{msg}</p> : null}
-          {phase === 'draft' && !msg ? (
-            <p className="ok">Черновик сохранён</p>
+          {msg && !saveError ? <p className="ok">{msg}</p> : null}
+          {phase === 'draft' && !dirty && !msg ? (
+            <p className="ok">Черновик сохранён на Drive</p>
           ) : null}
           {phase === 'saving' && !msg ? (
             <p className="muted">Сохранение…</p>
           ) : null}
+          {localDraft && dirty && !localError ? (
+            <p className="muted">Копия приказов сохранена в этом браузере.</p>
+          ) : null}
         </div>
+        {saveError ? (
+          <div role="alert">
+            <p className="error">Не удалось сохранить на Drive: {saveError}</p>
+            <button type="button" className="btn btn-ghost" onClick={retryAutosave}>
+              Повторить сохранение
+            </button>
+          </div>
+        ) : null}
+        {localError ? <p className="error" role="alert">{localError}</p> : null}
         {err ? <p className="error">{err}</p> : null}
       </div>
     </div>

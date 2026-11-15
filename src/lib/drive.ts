@@ -1,3 +1,4 @@
+import { ZodError } from 'zod'
 import {
   AntariaMetaSchema,
   BoardSchema,
@@ -36,6 +37,7 @@ import { normalizeIndicators } from '../schema/metrics'
 import type { AntariaExport } from '../schema/export'
 import { EXPORT_FORMAT } from '../schema/export'
 import { SCHEMA_VERSION } from '../schema/province'
+import { DriveAccessRequiredError, rejectDriveAccess } from './driveAccess'
 
 const DRIVE_UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files'
 const DRIVE_FILES = 'https://www.googleapis.com/drive/v3/files'
@@ -52,6 +54,10 @@ async function driveFetch(
   const headers = new Headers(init.headers)
   headers.set('Authorization', `Bearer ${accessToken}`)
   const res = await fetch(url, { ...init, headers })
+  if (res.status === 401) {
+    rejectDriveAccess(accessToken)
+    throw new DriveAccessRequiredError()
+  }
   if (!res.ok) {
     const body = await res.text().catch(() => '')
     throw new Error(`Drive API ${res.status}: ${body.slice(0, 300)}`)
@@ -212,6 +218,7 @@ export async function uploadMediaFile(
   blob: Blob,
   name: string,
   mime: string,
+  { publicRead = true }: { publicRead?: boolean } = {},
 ): Promise<{ id: string; url: string }> {
   if (!mime.startsWith('image/')) {
     throw new Error('Можно загружать только изображения')
@@ -246,7 +253,7 @@ export async function uploadMediaFile(
     },
   )
   const file = (await res.json()) as DriveFile
-  await setAnyoneReader(accessToken, file.id)
+  if (publicRead) await setAnyoneReader(accessToken, file.id)
   return { id: file.id, url: mediaPublicUrl(file.id) }
 }
 
@@ -272,7 +279,10 @@ async function readOrDefault<T>(
   try {
     const raw = await readJsonFile<unknown>(accessToken, existing.id)
     return parse(raw)
-  } catch {
+  } catch (error) {
+    // Only invalid JSON/schema content may use defaults. HTTP and network errors
+    // must abort loading rather than replacing stored documents with empty data.
+    if (!(error instanceof SyntaxError) && !(error instanceof ZodError)) throw error
     return fallback()
   }
 }
@@ -374,7 +384,8 @@ export async function loadCabinet(
     try {
       const raw = await readJsonFile<unknown>(accessToken, f.id)
       orders.push(OrdersTurnSchema.parse(raw))
-    } catch {
+    } catch (error) {
+      if (!(error instanceof SyntaxError) && !(error instanceof ZodError)) throw error
       /* skip invalid */
     }
   }
@@ -390,7 +401,8 @@ export async function loadCabinet(
     try {
       const raw = await readJsonFile<unknown>(accessToken, f.id)
       verdicts.push(VerdictTurnSchema.parse(raw))
-    } catch {
+    } catch (error) {
+      if (!(error instanceof SyntaxError) && !(error instanceof ZodError)) throw error
       /* skip invalid */
     }
   }

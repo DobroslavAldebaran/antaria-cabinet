@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useCabinet } from '../cabinet/CabinetProvider'
 import { useDraftAutosave } from '../hooks/useDraftAutosave'
+import { DraftSaveError } from './DraftSaveError'
 import {
   ensureMediaFolder,
   saveCharacters,
@@ -15,6 +16,7 @@ import {
 } from '../schema/province'
 import { MasterDetailList } from './MasterDetailList'
 import { RichTextEditor } from './RichTextEditor'
+import { CharacterAvatar } from './CharacterAvatar'
 
 function stripUpdatedAt(doc: CharactersDoc): string {
   return JSON.stringify({ ...doc, updatedAt: '' })
@@ -77,7 +79,7 @@ export function CharactersPanel({
     setSavedIds(new Set(next.items.map((i) => i.id)))
   }
 
-  const { phase, markSaved, valueRef } = useDraftAutosave({
+  const { phase, markSaved, valueRef, saveError, retryAutosave } = useDraftAutosave({
     value: characters,
     resetKey: binding?.folderId ?? '',
     enabled: Boolean(binding && data?.characters),
@@ -149,7 +151,8 @@ export function CharactersPanel({
   }
 
   const uploadAvatar = async (file: File) => {
-    if (selectedIdx < 0) return
+    if (!selected) return
+    const characterId = selected.id
     setErr(null)
     setAvatarBusy(true)
     try {
@@ -161,8 +164,17 @@ export function CharactersPanel({
         file,
         file.name,
         file.type || 'image/png',
+        { publicRead: false },
       )
-      updateItem(selectedIdx, { avatarUrl: url, avatarFileId: id })
+      const current = valueRef.current
+      // The user may keep editing or select another character during upload.
+      if (!current.items.some((item) => item.id === characterId)) return
+      setCharacters({
+        ...current,
+        items: current.items.map((item) => item.id === characterId
+          ? { ...item, avatarUrl: url, avatarFileId: id }
+          : item),
+      })
       setMsg('Аватар загружен')
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Ошибка загрузки аватара')
@@ -251,18 +263,11 @@ export function CharactersPanel({
             <div className="field">
               <label>Аватар</label>
               <div className="character-avatar-row">
-                {selected.avatarUrl ? (
-                  <img
-                    className="character-avatar-preview"
-                    src={selected.avatarUrl}
-                    alt=""
-                  />
-                ) : (
-                  <div
-                    className="character-avatar-preview is-empty"
-                    aria-hidden
-                  />
-                )}
+                <CharacterAvatar
+                  className="character-avatar-preview"
+                  avatarUrl={selected.avatarUrl}
+                  avatarFileId={selected.avatarFileId}
+                />
                 <div className="btn-row">
                   <button
                     type="button"
@@ -275,7 +280,7 @@ export function CharactersPanel({
                   <button
                     type="button"
                     className="btn btn-ghost"
-                    disabled={!selected.avatarUrl || avatarBusy || busy}
+                    disabled={(!selected.avatarUrl && !selected.avatarFileId) || avatarBusy || busy}
                     onClick={clearAvatar}
                   >
                     Убрать
@@ -347,7 +352,7 @@ export function CharactersPanel({
         </button>
       </div>
       <div role="status" aria-live="polite">
-        {msg ? <p className="ok">{msg}</p> : null}
+        {msg && !saveError ? <p className="ok">{msg}</p> : null}
         {phase === 'draft' && !msg ? (
           <p className="ok">Черновик сохранён</p>
         ) : null}
@@ -355,6 +360,7 @@ export function CharactersPanel({
           <p className="muted">Сохранение…</p>
         ) : null}
       </div>
+      <DraftSaveError error={saveError} onRetry={retryAutosave} />
       {err ? <p className="error">{err}</p> : null}
     </>
   )

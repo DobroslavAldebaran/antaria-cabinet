@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { CharacterAvatar } from './CharacterAvatar'
 import {
   buildResponsibleOptions,
   filterResponsibleOptions,
@@ -229,18 +230,11 @@ export function ResponsiblePicker({
                       onClick={() => selectOption(option)}
                     >
                       {option.kind === 'character' ? (
-                        option.avatarUrl ? (
-                          <img
-                            className="entity-picker-avatar"
-                            src={option.avatarUrl}
-                            alt=""
-                          />
-                        ) : (
-                          <span
-                            className="entity-picker-avatar is-empty"
-                            aria-hidden
-                          />
-                        )
+                        <CharacterAvatar
+                          className="entity-picker-avatar"
+                          avatarUrl={option.avatarUrl}
+                          avatarFileId={option.avatarFileId}
+                        />
                       ) : null}
                       <span className="master-detail-text">
                         <span className="master-detail-label">

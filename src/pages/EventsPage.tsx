@@ -8,6 +8,7 @@ import {
 import { MasterDetailList } from '../components/MasterDetailList'
 import { RichTextEditor } from '../components/RichTextEditor'
 import { useDraftAutosave } from '../hooks/useDraftAutosave'
+import { DraftSaveError } from '../components/DraftSaveError'
 import { saveEvents, saveIndicators } from '../lib/drive'
 import {
   normalizeMetrics,
@@ -85,7 +86,7 @@ export function EventsPage() {
     setSavedIds(new Set(next.items.map((i) => i.id)))
   }
 
-  const { phase, markSaved, valueRef } = useDraftAutosave({
+  const { phase, markSaved, valueRef, saveError, retryAutosave } = useDraftAutosave({
     value: events,
     resetKey: binding?.folderId ?? '',
     enabled: Boolean(binding && data?.events) && !saving,
@@ -373,7 +374,7 @@ export function EventsPage() {
           </button>
         </div>
         <div role="status" aria-live="polite">
-          {msg ? <p className="ok">{msg}</p> : null}
+          {msg && !saveError ? <p className="ok">{msg}</p> : null}
           {phase === 'draft' && !msg ? (
             <p className="ok">Черновик сохранён</p>
           ) : null}
@@ -381,6 +382,7 @@ export function EventsPage() {
             <p className="muted">Сохранение…</p>
           ) : null}
         </div>
+        <DraftSaveError error={saveError} onRetry={retryAutosave} />
         {err ? <p className="error">{err}</p> : null}
       </div>
     </div>
