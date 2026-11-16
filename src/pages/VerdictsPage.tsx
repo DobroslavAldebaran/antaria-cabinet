@@ -378,7 +378,7 @@ export function VerdictsPage() {
         : 'Сохранить черновик'
 
   return (
-    <div className="page page-wide">
+    <div className="page page-wide page-document-editor">
       <div className="panel">
         <h2>Вердикты</h2>
 

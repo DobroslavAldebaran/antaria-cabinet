@@ -381,7 +381,7 @@ export function OrdersPage() {
         : 'Сохранить'
 
   return (
-    <div className="page page-wide">
+    <div className="page page-wide page-document-editor">
       <div className="panel">
         <h2>Приказы</h2>
         <p className="muted">

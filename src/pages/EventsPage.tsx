@@ -246,7 +246,7 @@ export function EventsPage() {
         : 'Сохранить'
 
   return (
-    <div className="page page-wide">
+    <div className="page page-wide page-document-editor">
       <div className="panel">
         <h2>События</h2>
         <p className="muted">
